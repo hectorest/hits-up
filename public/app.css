@@ -36,3 +36,16 @@ h1, h2, h3, .display { font-family: var(--display); letter-spacing: -0.02em; mar
 .ring > * { grid-area: 1 / 1; }
 .fade-in { animation: fadein .25s ease-out; }
 @keyframes fadein { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+/* Reglas con iconos */
+.rules2 { display: flex; flex-direction: column; gap: 8px; }
+.rule { display: flex; align-items: center; gap: 12px; padding: 9px 12px; border-radius: 14px; line-height: 1.35; font-size: 15px; text-align: left; }
+.rule .ri { position: relative; width: 36px; height: 36px; border-radius: 10px; display: grid; place-items: center; flex: none; }
+.rule.ok { background: #12261D; color: #D6F5E6; } .rule.ok .ri { background: #1A3A2B; color: #6FE3AE; }
+.rule.no { background: #2A1517; color: #F8D6D6; } .rule.no .ri { background: #3D1F22; color: #FF9A9A; }
+.rule.no .ri::after { content: ''; position: absolute; width: 34px; height: 3px; background: #FF6B6B; transform: rotate(-45deg); border-radius: 2px; }
+.rule.step { background: var(--s2); color: var(--txt); } .rule.step .ri { background: var(--acc-soft); color: var(--acc); }
+.tv-rules .rule { font-size: 20px; padding: 8px 14px; gap: 16px; }
+.tv-rules .rule .ri { width: 44px; height: 44px; border-radius: 12px; }
+.tv-rules .rule.no .ri::after { width: 42px; }
+.art { display: flex; justify-content: center; }
+.art svg { max-width: 100%; height: auto; }

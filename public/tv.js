@@ -108,12 +108,14 @@
   }
   function roundIntro(s) {
     const R = ROUNDS[s.round];
-    return page(s, `<section class="center card" style="padding:40px">
-      <div class="mut" style="font-size:22px;text-transform:uppercase;letter-spacing:.1em;font-weight:600">Ronda ${s.round}</div>
-      <div class="big" style="font-size:110px">${R.name}</div>
-      <div style="font-size:26px;line-height:1.6">${R.rules.map(esc).join('<br>')}</div>
-      <div class="pill" style="font-size:20px">${esc(R.pts)}</div>
-      <div class="mut" style="font-size:18px">El anfitrión empieza la ronda desde su móvil.</div></section>`);
+    return page(s, `<section class="card fade-in" style="flex:1;padding:24px 40px;display:flex;align-items:center;gap:44px">
+      <div class="art" style="flex:none;width:420px">${HU_ART.art(s.round, 420)}</div>
+      <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:12px">
+        <div class="mut" style="font-size:16px;text-transform:uppercase;letter-spacing:.1em;font-weight:600">Ronda ${s.round}</div>
+        <div class="big" style="font-size:64px">${R.name}</div>
+        <div class="tv-rules">${HU_ART.rules(s.round, { iconSize: 26 })}</div>
+        <div style="display:flex;flex-direction:column;gap:6px"><span class="pill" style="font-size:15px;align-self:flex-start">${esc(R.pts)}</span><span class="mut" style="font-size:14px">El anfitrión empieza la ronda desde su móvil.</span></div>
+      </div></section>`);
   }
   function r1(s) {
     const r = s.r1, gp = group(s, r.groupId);
@@ -173,11 +175,14 @@
   function r24(s) {
     const r = s.r24, g = group(s, r.groupId), R = ROUNDS[s.round];
     if (r.step === 'ready') {
-      return page(s, `<section class="center card" style="padding:40px">
-        <div style="display:flex;align-items:center;gap:14px;font-size:22px"><span class="mut" style="text-transform:uppercase;letter-spacing:.08em;font-weight:600;font-size:16px">Turno de</span>${chip(g, 24)}</div>
-        <div class="big" style="font-size:84px">Da pistas ${esc(r.clueGiverName)}</div>
-        <div class="mut" style="font-size:24px">Que se ponga los auriculares y pulse Empezar.</div>
-        <div style="font-size:20px">${R.rules.map(esc).join(' · ')}</div></section>`);
+      return page(s, `<section class="card fade-in" style="flex:1;padding:28px 40px;display:flex;align-items:center;gap:44px">
+        <div class="art" style="flex:none;width:360px">${HU_ART.art(s.round, 360)}</div>
+        <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:16px">
+          <div style="display:flex;align-items:center;gap:14px;font-size:22px"><span class="mut" style="text-transform:uppercase;letter-spacing:.08em;font-weight:600;font-size:16px">Turno de</span>${chip(g, 24)}</div>
+          <div class="big" style="font-size:68px">Da pistas ${esc(r.clueGiverName)}</div>
+          <div class="mut" style="font-size:20px">Que se ponga los auriculares y pulse Empezar.</div>
+          <div class="tv-rules">${HU_ART.rules(s.round, { iconSize: 26 })}</div>
+        </div></section>`);
     }
     if (r.step === 'turnEnd') {
       const sm = r.summary;

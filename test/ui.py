@@ -57,7 +57,7 @@ try:
         time.sleep(0.5)
         shot(tv, '01_tv_sala'); shot(ana, '02_movil_sala')
         ana.click('[data-act=start]'); tv.wait_for_selector('text=La Selección')
-        shot(tv, '03_tv_intro')
+        time.sleep(0.4); shot(tv, '03_tv_intro'); shot(bea, '03b_movil_intro')
         ana.click('[data-act=beginRound]')
 
         queries = ['despacito', 'macarena', 'waka', 'dancing', 'billie', 'tusa', 'bailando', 'flaca', 'quedate', 'uptown']
@@ -112,6 +112,8 @@ try:
 
         for rnd in (2, 3, 4):
             ana.click('[data-act=next]')
+            tv.wait_for_selector('text=Ronda %d' % rnd); time.sleep(0.4)
+            shot(tv, '%02d_tv_intro_r%d' % (30 + rnd, rnd)); shot(bea, '%02d_movil_intro_r%d' % (30 + rnd, rnd))
             ana.click('[data-act=beginRound]')
             falta_done = False
             for _ in range(80):

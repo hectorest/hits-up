@@ -114,9 +114,13 @@
     3: ['Tararear, silbar, gestos moderados', 'Letra, palabras, bailar'],
     4: ['Bailar y mímica', 'Sonidos, mover los labios con la letra']
   };
-  const rulesBox = round => `<div class="rules">
-      <div style="padding:12px 14px;border-radius:14px;background:#12261D"><div style="font-weight:700;color:#6FE3AE">Vale</div><div style="color:#D6F5E6">${esc(VALE[round][0])}</div></div>
-      <div style="padding:12px 14px;border-radius:14px;background:#2A1517"><div style="font-weight:700;color:#FF9A9A">No vale</div><div style="color:#F8D6D6">${esc(VALE[round][1])}</div></div></div>`;
+  const rulesBox = round => {
+    const R = HU_ART.RULES[round];
+    const col = (cls, title, list, color) => `<div style="padding:12px;border-radius:14px;background:${cls === 'ok' ? '#12261D' : '#2A1517'}">
+      <div style="font-weight:700;color:${color};margin-bottom:6px">${title}</div>
+      ${list.map(([k, t]) => `<div style="display:flex;gap:8px;align-items:flex-start;margin-top:6px;color:${cls === 'ok' ? '#D6F5E6' : '#F8D6D6'}"><span style="color:${color};flex:none;margin-top:1px">${HU_ART.icon(k, 16)}</span><span>${esc(t)}</span></div>`).join('')}</div>`;
+    return `<div class="rules" style="font-size:13px;line-height:1.35">${col('ok', 'Vale', R.ok, '#6FE3AE')}${col('no', 'No vale', R.no, '#FF9A9A')}</div>`;
+  };
   const scoreLine = s => { const g = myGroup(s); return g ? `${g.score} pts` : ''; };
 
   /* ---------------- Pantallas ---------------- */
@@ -147,7 +151,8 @@
   function roundIntro(s) {
     const R = ROUNDS[s.round];
     return `${kicker(myGroup(s), 'Ronda ' + s.round)}<div class="title" style="font-size:36px">${R.name}</div>
-      <ul style="margin:0;padding-left:20px;line-height:1.7;font-size:16px">${R.rules.map(r => `<li>${esc(r)}</li>`).join('')}</ul>
+      <div class="art">${HU_ART.art(s.round, 240)}</div>
+      ${HU_ART.rules(s.round)}
       <div class="pill" style="font-size:14px;line-height:1.4">${esc(R.pts)}</div>
       ${s.me.isHost ? `<button type="button" class="btn btn-acc btn-block" data-act="beginRound">Empezar ronda ${s.round}</button>` : '<div class="mut">Esperando al anfitrión…</div>'}`;
   }
@@ -246,9 +251,10 @@
     if (r.step === 'ready') {
       if (isClue) return `<div>${kicker(g, g.name + ' · Ronda ' + s.round + ' · ' + R.name)}<div class="title">Te toca dar pistas</div></div>
         <div class="warn" style="font-size:15px">${ICON.headphones}<span>Ponte los auriculares: la canción solo debe oírla tú.</span></div>
-        ${rulesBox(s.round)}
+        <div class="art">${HU_ART.art(s.round, 200)}</div>
+        ${HU_ART.rules(s.round)}
         <div class="grow"></div><button type="button" class="btn btn-acc btn-block" style="min-height:64px;font-size:20px" data-act="begin">Empezar</button>${hb}`;
-      return `${kicker(mg, (mg ? mg.name : '') + ' · Ronda ' + s.round + ' · ' + scoreLine(s))}<div class="grow center">${chip(g, 18)}
+      return `${kicker(mg, (mg ? mg.name : '') + ' · Ronda ' + s.round + ' · ' + scoreLine(s))}<div class="grow center"><div class="art">${HU_ART.art(s.round, 200)}</div>${chip(g, 18)}
         <div class="title">Da pistas ${esc(r.clueGiverName)}</div><div class="mut">${mine ? '¡Preparaos para adivinar!' : 'Vigilaréis la carta desde aquí.'}</div></div>${hb}`;
     }
     if (r.step === 'turnEnd') {
@@ -300,7 +306,7 @@
     const fichas = mg ? mg.fichas : 0;
     return `${top}${fr}
       ${c ? `<section class="card" style="display:flex;align-items:center;gap:14px;padding:16px;border-radius:20px">${cover(c, 72, 14)}<div class="s-meta"><div class="display" style="font-weight:700;font-size:26px">${esc(c.title)}</div><div class="mut" style="font-size:15px">${esc(c.artist)}</div></div></section>` : '<div class="mut">Cambiando de carta…</div>'}
-      <div style="padding:14px 16px;border-radius:16px;background:#2A1517;font-size:15px;line-height:1.5"><div style="font-weight:700;color:#FF9A9A">Es falta si…</div><div style="color:#F8D6D6">${esc(VALE[s.round][1])}.</div></div>
+      <div style="display:flex;flex-direction:column;gap:8px"><div style="font-weight:700;color:#FF9A9A">Es falta si…</div>${HU_ART.rules(s.round, { only: 'no' })}</div>
       <div class="grow" style="justify-content:flex-end;gap:14px">
         <div style="display:flex;align-items:center;justify-content:space-between;font-size:15px"><span>Fichas de falta en esta ronda</span><span style="display:inline-flex;gap:8px">${[0, 1].map(i => `<span class="dot" style="width:22px;height:22px;background:${i < fichas ? 'var(--acc)' : 'transparent'};border:2px solid var(--acc)"></span>`).join('')}</span></div>
         <button type="button" class="btn btn-acc btn-block" style="min-height:84px;font-size:30px;border-radius:22px" data-act="falta" ${fichas > 0 && c ? '' : 'disabled'}>${ICON.flag} ¡Falta!</button>
