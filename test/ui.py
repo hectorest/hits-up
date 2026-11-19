@@ -93,8 +93,15 @@ try:
             rp = phones[rival]
             if 'pulsador' not in shots_done:
                 shot(tv, '05_tv_suena'); shot(rp, '06_movil_pulsador')
+            if 'audio' not in shots_done:
+                tv.wait_for_function('window.__huAudio && !window.__huAudio.paused && window.__huAudio.currentTime > 0.3', timeout=6000)
+                print('  ✓ La canción suena en la TV')
             rp.click('[data-act=buzz]')
             pg.wait_for_selector('[data-act=judge][data-arg=title]:not([disabled])')
+            if 'audio' not in shots_done:
+                tv.wait_for_function('window.__huAudio.paused', timeout=3000)
+                paused_at = tv.evaluate('window.__huAudio.currentTime')
+                print('  ✓ Se pausa al pulsar (en %.1f s)' % paused_at)
             if 'pulsador' not in shots_done:
                 time.sleep(0.4)
                 shot(tv, '07_tv_responde'); shot(pg, '08_movil_juez'); shot(rp, '09_movil_os_toca'); shots_done.add('pulsador')
@@ -103,6 +110,10 @@ try:
                 shot(tv, '07b_tv_decide_juez'); shot(pg, '08b_movil_juez_decide'); shot(rp, '09b_movil_decide_juez')
             pg.click('[data-act=judge][data-arg=title]')
             tv.wait_for_selector('text=Entra al mazo')
+            if 'audio' not in shots_done:
+                tv.wait_for_function('!window.__huAudio.paused && window.__huAudio.currentTime > %f' % (paused_at + 0.3), timeout=4000)
+                print('  ✓ Se reanuda al acertar, desde donde se paró (%.1f s)' % tv.evaluate('window.__huAudio.currentTime'))
+                shots_done.add('audio')
             if 'reveal' not in shots_done:
                 shot(tv, '10_tv_revelacion'); shots_done.add('reveal')
             tv.wait_for_selector('text=Entra al mazo', state='detached', timeout=8000)

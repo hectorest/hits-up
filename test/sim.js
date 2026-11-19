@@ -3,7 +3,7 @@
 process.env.DEEZER_MOCK = '1';
 const { server, T } = require('../server.js');
 // Acelerar tiempos para la prueba
-Object.assign(T, { PREVIEW: 3000, ANSWER: 800, JUDGE_MAX: 1500, BONUS: 1500, REVEAL: 300, TURN: { 2: 2500, 3: 8000, 4: 2500 }, TURN_END: 300, FALTA: 1500, DECK_TOTAL: 6, CARRY_MIN: 300, HIT_WINDOW: 400 });
+Object.assign(T, { PREVIEW: 3000, ANSWER: 800, JUDGE_MAX: 1500, REVEAL_HIT: 300, BONUS: 1500, REVEAL: 300, TURN: { 2: 2500, 3: 8000, 4: 2500 }, TURN_END: 300, FALTA: 1500, DECK_TOTAL: 6, CARRY_MIN: 300, HIT_WINDOW: 400 });
 
 const PORT = 3999;
 const base = `http://localhost:${PORT}`;
@@ -94,10 +94,15 @@ function listen(url, onState) {
         check(tv.r1.step === 'answering' && tv.r1.answeringExpired, 'Pasados los 5 s no cuenta como fallo: decide el juez');
         await act(prop, 'judge', { verdict: 'title' }); await sleep(40);
         check(tv.r1.step === 'reveal' && tv.r1.reveal.result === 'in', 'El juez puede dar por buena la respuesta tras los 5 s');
+        check(tv.r1.audio && tv.r1.audio.playing, 'Al acertar, la canción se reanuda en la TV durante la revelación');
         sawBonus = true;
       }
       else if (mode === 2) { await act(prop, 'judge', { verdict: 'artist' }); await sleep(60); sawArtist = true; if (tv.r1.step === 'answering') await act(prop, 'judge', { verdict: 'title' }); }
-      else { await act(prop, 'judge', { verdict: 'fail' }); await sleep(60); if (tv.r1.step === 'answering') await act(prop, 'judge', { verdict: 'title' }); }
+      else {
+        await act(prop, 'judge', { verdict: 'fail' }); await sleep(60);
+        if (tv.r1.step === 'playing') check(tv.r1.audio && tv.r1.audio.playing, 'Tras un fallo, la canción se reanuda en la TV');
+        if (tv.r1.step === 'answering') await act(prop, 'judge', { verdict: 'title' });
+      }
     }
     await sleep(T.REVEAL + 300);
   }

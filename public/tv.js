@@ -3,6 +3,7 @@
   const $tv = document.getElementById('tv');
   const audio = new Audio();
   audio.preload = 'auto';
+  window.__huAudio = audio; // para las pruebas automáticas
   let audioKey = null, retriedKey = null, songId = null;
   audio.addEventListener('error', async () => {
     if (!audioKey || retriedKey === audioKey || !songId) return;

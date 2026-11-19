@@ -16,6 +16,7 @@ const T = {
   JUDGE_MAX: 60000,    // si el juez no decide en este tiempo tras los 5 s, cuenta como fallo
   BONUS: 10000,        // +1 si se acierta antes de este tiempo de música
   REVEAL: 6000,        // revelación en la TV
+  REVEAL_HIT: 8000,    // revelación tras un acierto (la canción sigue sonando)
   TURN: { 2: 45000, 3: 45000, 4: 60000 },
   TURN_END: 4500,
   FALTA: 30000,        // tiempo máximo del debate
@@ -24,7 +25,7 @@ const T = {
   FICHAS: 2,
   CARRY_MIN: 3000
 };
-if (process.env.HU_FAST === '1') Object.assign(T, { PREVIEW: 9000, BONUS: 4000, REVEAL: 2500, TURN: { 2: 15000, 3: 15000, 4: 15000 }, TURN_END: 2000, DECK_TOTAL: 6 });
+if (process.env.HU_FAST === '1') Object.assign(T, { PREVIEW: 9000, BONUS: 4000, REVEAL: 2500, REVEAL_HIT: 3000, TURN: { 2: 15000, 3: 15000, 4: 15000 }, TURN_END: 2000, DECK_TOTAL: 6 });
 const ROUND_PTS = { 2: 2, 3: 3, 4: 4 };
 const PRESETS = [
   { name: 'Tigres', color: '#FFB547' },
@@ -95,7 +96,19 @@ const MOCK_SONGS = [
   ['Dancing Queen', 'ABBA'], ['Bohemian Rhapsody', 'Queen'], ['Billie Jean', 'Michael Jackson'], ['Uptown Funk', 'Mark Ronson'],
   ['Mr. Brightside', 'The Killers'], ['Bad Romance', 'Lady Gaga'], ['Tusa', 'Karol G'], ['Quédate', 'Quevedo'],
   ['Corazón partío', 'Alejandro Sanz'], ['Mi gran noche', 'Raphael'], ['Ay qué dolor', 'Los Chunguitos'], ['Hey Ya!', 'OutKast']
-].map(([title, artist], i) => ({ id: String(1000 + i), title, artist, album: 'Demo', cover: '', preview: 'https://example.invalid/' + (1000 + i) + '.mp3' }));
+].map(([title, artist], i) => ({ id: String(1000 + i), title, artist, album: 'Demo', cover: '', preview: '/mock.wav?id=' + (1000 + i) }));
+
+// Audio de prueba (30 s de tono suave) para el modo simulado
+let mockWav = null;
+function getMockWav() {
+  if (mockWav) return mockWav;
+  const rate = 8000, secs = 30, n = rate * secs, buf = Buffer.alloc(44 + n);
+  buf.write('RIFF', 0); buf.writeUInt32LE(36 + n, 4); buf.write('WAVE', 8); buf.write('fmt ', 12);
+  buf.writeUInt32LE(16, 16); buf.writeUInt16LE(1, 20); buf.writeUInt16LE(1, 22); buf.writeUInt32LE(rate, 24);
+  buf.writeUInt32LE(rate, 28); buf.writeUInt16LE(1, 32); buf.writeUInt16LE(8, 34); buf.write('data', 36); buf.writeUInt32LE(n, 40);
+  for (let i = 0; i < n; i++) buf[44 + i] = 128 + Math.round(20 * Math.sin(2 * Math.PI * 440 * i / rate));
+  return (mockWav = buf);
+}
 
 async function searchSongs(q) {
   q = String(q || '').trim().slice(0, 100);
@@ -136,7 +149,7 @@ const inDeck = (room, gid) => room.deck.filter(s => s.groupId === gid).length;
 /* ------------------------------------------------------------------ */
 /* Ronda 1 · La Selección                                              */
 /* ------------------------------------------------------------------ */
-function played(r) { return r.playedMs + (r.startedAt ? now() - r.startedAt : 0); }
+function played(r) { return Math.min(T.PREVIEW, r.playedMs + (r.startedAt ? now() - r.startedAt : 0)); }
 
 function startR1(room) {
   room.phase = 'r1';
@@ -213,7 +226,8 @@ function r1Judge(room, p, verdict, auto) {
     r.reveal = { result: 'in', winnerGroupId: g.id, pts };
     r.answering = null;
     r.step = 'reveal';
-    r.revealUntil = now() + T.REVEAL;
+    r.revealUntil = now() + T.REVEAL_HIT;
+    if (r.playedMs < T.PREVIEW) r.startedAt = now(); // la canción se reanuda en la TV durante la revelación
     return;
   }
   if (verdict === 'artist') g.score += 1;
@@ -534,7 +548,8 @@ function view(room, p) {
       reveal: r.step === 'reveal' ? { ...r.reveal, song: pub(r.song) } : null
     };
     if (p && p.id === r.proposerId && r.song) { v.r1.song = pub(r.song); v.r1.songPreview = r.song.preview; }
-    if (!p && r.song && (r.step === 'playing' || r.step === 'answering')) v.r1.audio = { url: r.song.preview, key: r.token, songId: r.song.id, playing: !!r.startedAt, offsetMs: played(r) };
+    const hitReveal = r.step === 'reveal' && r.reveal && r.reveal.result === 'in';
+    if (!p && r.song && (r.step === 'playing' || r.step === 'answering' || hitReveal)) v.r1.audio = { url: r.song.preview, key: r.token, songId: r.song.id, playing: !!r.startedAt, offsetMs: played(r) };
   }
   const q = room.r24;
   if (room.phase === 'r24' && q) {
@@ -651,6 +666,7 @@ const server = http.createServer(async (req, res) => {
       return json(res, 200, { preview: u });
     }
 
+    if (MOCK && req.method === 'GET' && p === '/mock.wav') { res.writeHead(200, { 'Content-Type': 'audio/wav', 'Accept-Ranges': 'none' }); return res.end(getMockWav()); }
     if (req.method === 'GET' && /^\/[\w.-]+\.(js|css|svg|png|ico)$/.test(p)) return serveFile(res, p.slice(1));
     json(res, 404, { error: 'No encontrado' });
   } catch (e) {
