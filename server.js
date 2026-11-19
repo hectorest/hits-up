@@ -70,8 +70,10 @@ async function dz(p) {
     const ctrl = new AbortController();
     const to = setTimeout(() => ctrl.abort(), 8000);
     try {
-      const r = await fetch('https://api.deezer.com' + p, { signal: ctrl.signal });
-      const d = await r.json();
+      const r = await fetch('https://api.deezer.com' + p, { signal: ctrl.signal, headers: { 'User-Agent': 'Mozilla/5.0 (compatible; HitsUp/0.1)', 'Accept': 'application/json' } });
+      const text = await r.text();
+      let d;
+      try { d = JSON.parse(text); } catch (e) { throw new Error(`Deezer HTTP ${r.status}: ${text.slice(0, 160)}`); }
       if (d && d.error) {
         if (d.error.code === 4) { await new Promise(r => setTimeout(r, 1200)); continue; }
         throw new Error(d.error.message || 'Deezer error');
@@ -99,10 +101,11 @@ async function searchSongs(q) {
   if (!q) return [];
   if (MOCK) { const n = norm(q); const r = MOCK_SONGS.filter(s => norm(s.title + ' ' + s.artist).includes(n)); return (r.length ? r : MOCK_SONGS).slice(0, 8); }
   const d = await dz('/search?limit=25&q=' + encodeURIComponent(q));
-  const ok = (d.data || []).filter(t => t.preview && t.readable !== false);
+  const all = d.data || [];
+  const ok = all.filter(t => t.preview && t.readable !== false);
   const clean = ok.filter(t => !isNoise(t));
   const hidden = ok.length - clean.length;
-  return { results: clean.slice(0, 10).map(mapTrack), hidden };
+  return { results: clean.slice(0, 10).map(mapTrack), hidden, stats: { total: all.length, withPreview: all.filter(t => t.preview).length, readable: all.filter(t => t.readable !== false).length } };
 }
 async function freshPreview(id) {
   if (MOCK) return null;
@@ -628,7 +631,7 @@ const server = http.createServer(async (req, res) => {
       try {
         const r = await searchSongs(url.searchParams.get('q'));
         return json(res, 200, Array.isArray(r) ? { results: r, hidden: 0 } : r);
-      } catch (e) { return json(res, 502, { error: 'No se pudo buscar en Deezer' }); }
+      } catch (e) { console.error('search', e.message); return json(res, 502, { error: 'No se pudo buscar en Deezer', detail: String(e.message || e).slice(0, 300) }); }
     }
     if (req.method === 'GET' && p === '/api/preview') {
       const u = await freshPreview(url.searchParams.get('id'));
