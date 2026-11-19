@@ -521,7 +521,7 @@ function view(room, p) {
       reveal: r.step === 'reveal' ? { ...r.reveal, song: pub(r.song) } : null
     };
     if (p && p.id === r.proposerId && r.song) { v.r1.song = pub(r.song); v.r1.songPreview = r.song.preview; }
-    if (!p && r.song && (r.step === 'playing' || r.step === 'answering')) v.r1.audio = { url: r.song.preview, key: r.token, playing: !!r.startedAt, offsetMs: played(r) };
+    if (!p && r.song && (r.step === 'playing' || r.step === 'answering')) v.r1.audio = { url: r.song.preview, key: r.token, songId: r.song.id, playing: !!r.startedAt, offsetMs: played(r) };
   }
   const q = room.r24;
   if (room.phase === 'r24' && q) {

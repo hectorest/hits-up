@@ -25,8 +25,8 @@
   async function playSong(key, song) {
     if (playingKey === key) return stopAudio();
     let url = song.preview || song.previewUrl;
-    const r = await get('/api/preview?id=' + encodeURIComponent(song.id));
-    if (r && r.preview) url = r.preview;
+    const fresh = await HU.freshPreview(song.id);
+    if (fresh) url = fresh;
     if (!url) return toast('Esta canción no tiene fragmento', true);
     audio.src = url;
     audio.play().catch(() => toast('No se pudo reproducir', true));
@@ -36,8 +36,10 @@
   audio.addEventListener('ended', () => { if (playingKey && !playingKey.startsWith('card')) { playingKey = null; refreshPlayButtons(); } });
   audio.addEventListener('error', async () => {
     if (!playingKey || !playingKey.startsWith('card') || !S || !S.r24 || !S.r24.card) return;
-    const r = await get('/api/preview?id=' + encodeURIComponent(S.r24.card.id));
-    if (r && r.preview && r.preview !== audio.src) { audio.src = r.preview; audio.play().catch(() => {}); }
+    if (audio.dataset.retried === S.r24.card.drawId) return;
+    audio.dataset.retried = S.r24.card.drawId;
+    const fresh = await HU.freshPreview(S.r24.card.id);
+    if (fresh && fresh !== audio.src) { audio.src = fresh; audio.play().catch(() => {}); }
   });
   function refreshPlayButtons() {
     document.querySelectorAll('[data-pact="play"]').forEach(b => { b.innerHTML = b.dataset.key === playingKey ? ICON.stop : ICON.play; });
@@ -377,7 +379,7 @@
     searchTimer = setTimeout(async () => {
       const seq = ++searchSeq;
       $('resultsNote').textContent = 'Buscando…';
-      const r = await get('/api/search?q=' + encodeURIComponent(q));
+      const r = await HU.search(q);
       if (seq !== searchSeq) return;
       if (r.error) { results = []; hiddenCount = 0; renderPanel(); $('resultsNote').textContent = r.error; return; }
       results = r.results || []; hiddenCount = r.hidden || 0;

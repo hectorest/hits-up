@@ -33,6 +33,39 @@ window.HU = (() => {
     try { const r = await fetch(path); return await r.json(); } catch (e) { return { error: 'Sin conexión con el servidor' }; }
   }
 
+  // Deezer directo desde el navegador (JSONP), por si el servidor no puede llegar a Deezer
+  let jsonpN = 0;
+  function dzDirect(path) {
+    return new Promise((resolve, reject) => {
+      const name = '__dz' + Date.now() + '_' + (jsonpN++);
+      const sc = document.createElement('script');
+      const timer = setTimeout(() => { done(); reject(new Error('timeout')); }, 9000);
+      function done() { clearTimeout(timer); try { delete window[name]; } catch (e) { window[name] = undefined; } sc.remove(); }
+      window[name] = d => { done(); d && d.error ? reject(new Error(d.error.message || 'Deezer')) : resolve(d); };
+      sc.onerror = () => { done(); reject(new Error('Sin conexión con Deezer')); };
+      sc.src = 'https://api.deezer.com' + path + (path.includes('?') ? '&' : '?') + 'output=jsonp&callback=' + name;
+      document.head.appendChild(sc);
+    });
+  }
+  const NOISE = /karaok|cover|tribute|homenaje|in the style of|made famous|originally performed|lullaby|8.?bit|piano version|versi[oó]n instrumental|remake|backing track/i;
+  const isNoise = t => NOISE.test(t.title || '') || NOISE.test((t.artist && t.artist.name) || '') || NOISE.test((t.album && t.album.title) || '');
+  const mapTrack = t => ({ id: String(t.id), title: t.title_short || t.title, artist: t.artist ? t.artist.name : '', album: t.album ? t.album.title : '', cover: t.album ? (t.album.cover_medium || t.album.cover) : '', preview: t.preview });
+  async function search(q) {
+    const r = await get('/api/search?q=' + encodeURIComponent(q));
+    if (!r.error) return r;
+    try {
+      const d = await dzDirect('/search?limit=25&q=' + encodeURIComponent(q));
+      const ok = (d.data || []).filter(t => t.preview && t.readable !== false);
+      const clean = ok.filter(t => !isNoise(t));
+      return { results: clean.slice(0, 10).map(mapTrack), hidden: ok.length - clean.length, direct: true };
+    } catch (e) { return { error: 'No se pudo buscar en Deezer' }; }
+  }
+  async function freshPreview(id) {
+    const r = await get('/api/preview?id=' + encodeURIComponent(id));
+    if (r && r.preview) return r.preview;
+    try { const t = await dzDirect('/track/' + encodeURIComponent(id)); return t && t.preview || null; } catch (e) { return null; }
+  }
+
   const group = (s, id) => s.groups.find(g => g.id === id);
   const dot = (color, size = 12) => `<span class="dot" style="background:${color};width:${size}px;height:${size}px"></span>`;
   const chip = (g, size) => g ? `<span class="chip" style="--gc:${g.color}${size ? ';font-size:' + size + 'px' : ''}">${dot(g.color, 10)}${esc(g.name)}</span>` : '';
@@ -99,5 +132,5 @@ window.HU = (() => {
     setTimeout(() => el.remove(), 2600);
   }
 
-  return { esc, sNow, connect, post, get, group, dot, chip, cover, vinyl, fmt, ring, ROUNDS, ICON, toast };
+  return { esc, sNow, connect, post, get, search, freshPreview, group, dot, chip, cover, vinyl, fmt, ring, ROUNDS, ICON, toast };
 })();

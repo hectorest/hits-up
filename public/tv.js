@@ -3,7 +3,13 @@
   const $tv = document.getElementById('tv');
   const audio = new Audio();
   audio.preload = 'auto';
-  let audioKey = null;
+  let audioKey = null, retriedKey = null, songId = null;
+  audio.addEventListener('error', async () => {
+    if (!audioKey || retriedKey === audioKey || !songId) return;
+    retriedKey = audioKey;
+    const fresh = await HU.freshPreview(songId);
+    if (fresh) { audio.src = fresh; if (S && S.r1 && S.r1.audio && S.r1.audio.playing) audio.play().catch(() => {}); }
+  });
   let S = null;
   let joinUrl = location.origin;
   if (/^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname)) {
@@ -45,6 +51,7 @@
     const offset = (a.offsetMs + (Date.now() - s._recv)) / 1000;
     if (audioKey !== a.key) {
       audioKey = a.key;
+      songId = a.songId;
       audio.src = a.url;
       audio.currentTime = 0;
     }
