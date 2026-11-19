@@ -151,7 +151,7 @@
       return `<div class="q-item ${q.answering ? 'on' : ''}">
         <div class="display" style="font-weight:700;font-size:22px;width:22px;${q.answering ? '' : 'color:var(--mut)'}">${i + 1}</div>${dot(g.color, 14)}
         <div style="flex:1;min-width:0"><div style="font-weight:700;font-size:20px">${esc(g.name)}</div>${q.answering ? '<div style="font-size:14px;color:#FFB3C2">Respondiendo</div>' : ''}</div>
-        ${q.answering ? ring(56, 5, r.answeringDeadline, s.T.ANSWER) : `<div class="mut" style="font-size:16px">${i === 0 ? '' : '+' + (q.delta / 1000).toFixed(2).replace('.', ',') + ' s'}</div>`}</div>`;
+        ${q.answering ? (r.answeringExpired ? '<div class="pill" style="font-size:14px;white-space:nowrap">Decide el juez</div>' : ring(56, 5, r.answeringDeadline, s.T.ANSWER)) : `<div class="mut" style="font-size:16px">${i === 0 ? '' : '+' + (q.delta / 1000).toFixed(2).replace('.', ',') + ' s'}</div>`}</div>`;
     }).join('') : '<div class="mut" style="font-size:18px">Nadie ha pulsado todavía.</div>';
     const outTxt = r.out.length ? `<div class="mut" style="font-size:14px">Fuera: ${r.out.map(id => esc(group(s, id).name)).join(', ')}</div>` : '';
     const bonusPct = s.T.BONUS / s.T.PREVIEW * 100;

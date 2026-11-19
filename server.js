@@ -12,7 +12,8 @@ const PUBLIC_DIR = path.join(__dirname, 'public');
 
 const T = {
   PREVIEW: 30000,      // duración del fragmento
-  ANSWER: 5000,        // tiempo para responder en la ronda 1
+  ANSWER: 5000,        // tiempo para empezar a responder en la ronda 1
+  JUDGE_MAX: 60000,    // si el juez no decide en este tiempo tras los 5 s, cuenta como fallo
   BONUS: 10000,        // +1 si se acierta antes de este tiempo de música
   REVEAL: 6000,        // revelación en la TV
   TURN: { 2: 45000, 3: 45000, 4: 60000 },
@@ -195,7 +196,7 @@ function r1StartAnswer(room) {
   const r = room.r1;
   const next = r.queue.shift();
   if (r.startedAt) { r.playedMs += now() - r.startedAt; r.startedAt = null; }
-  r.answering = { groupId: next.groupId, at: next.at, deadline: now() + T.ANSWER };
+  r.answering = { groupId: next.groupId, at: next.at, deadline: now() + T.ANSWER, expired: false };
   r.step = 'answering';
 }
 function r1Judge(room, p, verdict, auto) {
@@ -237,7 +238,8 @@ function tickR1(room) {
   const r = room.r1;
   if (!r) return false;
   if (r.step === 'playing' && played(r) >= T.PREVIEW) { r1Discard(room); return true; }
-  if (r.step === 'answering' && now() > r.answering.deadline) { r1Judge(room, null, 'fail', true); return true; }
+  if (r.step === 'answering' && !r.answering.expired && now() > r.answering.deadline) { r.answering.expired = true; return true; }
+  if (r.step === 'answering' && now() > r.answering.deadline + T.JUDGE_MAX) { r1Judge(room, null, 'fail', true); return true; }
   if (r.step === 'reveal' && now() > r.revealUntil) { nextR1Turn(room); return true; }
   return false;
 }
@@ -526,7 +528,7 @@ function view(room, p) {
     r.queue.forEach(q => queue.push({ groupId: q.groupId, delta: q.at - r.firstBuzzAt }));
     v.r1 = {
       step: r.step, groupId: r.groupId, proposerId: r.proposerId, proposerName: prop ? prop.name : '?',
-      queue, out: r.out, answeringDeadline: r.answering ? r.answering.deadline : null,
+      queue, out: r.out, answeringDeadline: r.answering ? r.answering.deadline : null, answeringExpired: !!(r.answering && r.answering.expired),
       playedMs: played(r), playing: !!r.startedAt, chooseDeadline: r.chooseDeadline,
       lastVerdict: r.lastVerdict && now() - r.lastVerdict.at < 2500 ? r.lastVerdict : null,
       reveal: r.step === 'reveal' ? { ...r.reveal, song: pub(r.song) } : null

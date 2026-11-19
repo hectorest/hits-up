@@ -98,6 +98,9 @@ try:
             if 'pulsador' not in shots_done:
                 time.sleep(0.4)
                 shot(tv, '07_tv_responde'); shot(pg, '08_movil_juez'); shot(rp, '09_movil_os_toca'); shots_done.add('pulsador')
+                pg.wait_for_selector('text=¿Ha acertado?', timeout=9000)
+                time.sleep(0.3)
+                shot(tv, '07b_tv_decide_juez'); shot(pg, '08b_movil_juez_decide'); shot(rp, '09b_movil_decide_juez')
             pg.click('[data-act=judge][data-arg=title]')
             tv.wait_for_selector('text=Entra al mazo')
             if 'reveal' not in shots_done:

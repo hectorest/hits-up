@@ -181,7 +181,9 @@
         <div class="card" style="display:flex;align-items:center;gap:14px;padding:14px;border-radius:18px">${cover(r.song, 64)}
           <div class="s-meta"><div class="display" style="font-weight:700;font-size:22px">${esc(r.song.title)}</div><div class="mut" style="font-size:14px">${esc(r.song.artist)}</div><div class="mut" style="font-size:12px;margin-top:4px">Solo tú ves la respuesta</div></div></div>
         <div class="grow center" style="gap:12px">
-          ${can ? `<div class="mut" style="font-size:13px;text-transform:uppercase;letter-spacing:.08em;font-weight:600">Responde</div>${chip(ansG, 22)}${ring(140, 10, r.answeringDeadline, s.T.ANSWER)}
+          ${can ? `<div class="mut" style="font-size:13px;text-transform:uppercase;letter-spacing:.08em;font-weight:600">Responde</div>${chip(ansG, 22)}${r.answeringExpired
+              ? '<div class="title" style="font-size:26px">¿Ha acertado?</div><div class="mut" style="font-size:14px;max-width:280px">Se acabaron los 5 s para empezar a responder. Escucha la respuesta y decide.</div>'
+              : ring(140, 10, r.answeringDeadline, s.T.ANSWER)}
             <div class="mut" style="font-size:14px">${next.length ? 'Después: ' + next.join(' · ') : 'Nadie más en la cola'}</div>`
             : `<div class="title" style="font-size:22px">Esperando a que alguien pulse…</div>${lv ? `<div class="mut">${esc(lv.name)}: ${r.lastVerdict.verdict === 'artist' ? 'solo artista' : 'fallo'}</div>` : ''}`}
         </div>
@@ -214,14 +216,16 @@
     const inner = {
       libre: '<span class="display" style="font-weight:700;font-size:44px">¡LA SÉ!</span>',
       cola: `<span style="display:flex;flex-direction:column;align-items:center"><span style="font-size:16px;font-weight:600" class="mut">En cola</span><span class="display" style="font-weight:700;font-size:72px;line-height:1">${idx + 1}º</span></span>`,
-      responde: `<span style="display:flex;flex-direction:column;align-items:center"><span style="font-size:16px;font-weight:700">¡Os toca!</span><span class="display" style="font-weight:700;font-size:80px;line-height:1" data-until="${r.answeringDeadline}" data-fmt="sec">5</span></span>`,
+      responde: r.answeringExpired
+        ? '<span style="display:flex;flex-direction:column;align-items:center;gap:6px"><span style="font-size:16px;font-weight:700">¡Os toca!</span><span class="display" style="font-weight:700;font-size:26px;line-height:1.15">Decide el juez</span></span>'
+        : `<span style="display:flex;flex-direction:column;align-items:center"><span style="font-size:16px;font-weight:700">¡Os toca!</span><span class="display" style="font-weight:700;font-size:80px;line-height:1" data-until="${r.answeringDeadline}" data-fmt="sec">5</span></span>`,
       out: '<span class="display" style="font-weight:700;font-size:26px">Fuera en esta canción</span>',
       fin: '<span class="display" style="font-weight:700;font-size:26px">Se acabó la canción</span>'
     };
     const help = {
       libre: 'Pulsa si sabes el título. Si fallas, −1.',
       cola: ansG ? `Responde ${esc(ansG.name)}. Estáis en la cola.` : 'Estáis en la cola.',
-      responde: 'Decid el título en voz alta. La música está en pausa.',
+      responde: r.answeringExpired ? 'Terminad de responder: el juez dirá si vale.' : 'Decid el título en voz alta. La música está en pausa.',
       out: 'Esperad a la siguiente canción.',
       fin: 'Esperad a que se resuelva la cola.'
     };
