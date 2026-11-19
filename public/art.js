@@ -87,7 +87,7 @@
   const icon = (k, s = 20) => `<svg width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${P[k]}</svg>`;
 
   const RULES = {
-    1: { steps: [['propose', 'Cada grupo propone una canción, por turnos'], ['tv', 'Suena en la tele'], ['buzz', 'Los rivales pulsan y responden en 5 s'], ['deck', 'Solo entran al mazo las que alguien acierta']] },
+    1: { steps: [['propose', 'Cada grupo propone una canción, por turnos'], ['tv', 'Suena en la tele'], ['buzz', 'Los rivales pulsan y responden en 5 s'], ['deck', 'Si nadie la acierta, quien la propuso decide si entra']] },
     2: { ok: [['talk', 'Descríbela: época, de qué trata, dónde sonaba'], ['headphones', 'Solo tú la oyes, con auriculares']], no: [['title', 'Decir el título o el artista'], ['note', 'Cantar o tararear']] },
     3: { ok: [['hum', 'Tararear: na-na-na, silbar, pom-pom'], ['hands', 'Gestos moderados']], no: [['lyrics', 'Cantar la letra o decir palabras'], ['dance', 'Bailar']] },
     4: { ok: [['dance', 'Bailar y hacer mímica']], no: [['mute', 'Hacer cualquier sonido'], ['lips', 'Mover los labios con la letra']] }

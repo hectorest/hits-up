@@ -30,6 +30,8 @@ const T = {
   BONUS: 10000,        // +1 si se acierta antes de este tiempo de música
   REVEAL: 6000,        // revelación en la TV
   REVEAL_HIT: 8000,    // revelación tras un acierto (la canción sigue sonando)
+  KEEP_DECIDE: 10000,  // tiempo para decidir si una canción no acertada entra al mazo (por defecto, entra)
+  REVEAL_SHORT: 2500,  // revelación breve tras esa decisión
   TURN: { 2: 45000, 3: 45000, 4: 60000 },
   TURN_END: 4500,
   FALTA: 30000,        // tiempo máximo del debate
@@ -38,7 +40,7 @@ const T = {
   FICHAS: 2,
   CARRY_MIN: 3000
 };
-if (process.env.HU_FAST === '1') Object.assign(T, { PREVIEW: 9000, BONUS: 4000, REVEAL: 2500, REVEAL_HIT: 3000, TURN: { 2: 15000, 3: 15000, 4: 15000 }, TURN_END: 2000, DECK_TOTAL: 6 });
+if (process.env.HU_FAST === '1') Object.assign(T, { PREVIEW: 9000, BONUS: 4000, REVEAL: 2500, REVEAL_HIT: 3000, KEEP_DECIDE: 6000, TURN: { 2: 15000, 3: 15000, 4: 15000 }, TURN_END: 2000, DECK_TOTAL: 6 });
 const ROUND_PTS = { 2: 2, 3: 3, 4: 4 };
 const PRESETS = [
   { name: 'Tigres', color: '#FFB547' },
@@ -256,10 +258,22 @@ function r1Judge(room, p, verdict, auto) {
 function r1Discard(room) {
   const r = room.r1;
   if (r.startedAt) { r.playedMs += now() - r.startedAt; r.startedAt = null; }
-  r.reveal = { result: 'discard' };
+  r.reveal = { result: 'unguessed', pending: true };
   r.answering = null;
   r.step = 'reveal';
-  r.revealUntil = now() + T.REVEAL;
+  r.revealUntil = now() + T.KEEP_DECIDE;
+}
+// Nadie la acertó: quien la propuso decide si entra igualmente al mazo
+function r1Keep(room, p, keep, auto) {
+  const r = room.r1;
+  if (!r || r.step !== 'reveal' || !r.reveal || !r.reveal.pending) fail('No hay nada que decidir');
+  if (!auto && r.proposerId !== p.id) fail('Decide quien propuso la canción');
+  if (keep) {
+    const key = norm(r.song.title) + '|' + norm(r.song.artist);
+    if (!room.deck.some(s => s.id === r.song.id || norm(s.title) + '|' + norm(s.artist) === key)) room.deck.push({ ...r.song, groupId: r.groupId });
+  }
+  r.reveal = { result: keep ? 'kept' : 'discard' };
+  r.revealUntil = now() + T.REVEAL_SHORT;
 }
 function tickR1(room) {
   const r = room.r1;
@@ -267,6 +281,7 @@ function tickR1(room) {
   if (r.step === 'playing' && played(r) >= T.PREVIEW) { r1Discard(room); return true; }
   if (r.step === 'answering' && !r.answering.expired && now() > r.answering.deadline) { r.answering.expired = true; return true; }
   if (r.step === 'answering' && now() > r.answering.deadline + T.JUDGE_MAX) { r1Judge(room, null, 'fail', true); return true; }
+  if (r.step === 'reveal' && r.reveal && r.reveal.pending && now() > r.revealUntil) { r1Keep(room, null, true, true); return true; }
   if (r.step === 'reveal' && now() > r.revealUntil) { nextR1Turn(room); return true; }
   return false;
 }
@@ -522,6 +537,7 @@ async function handleAction(room, p, a) {
     }
     case 'propose': await r1Propose(room, p, a.song); break;
     case 'buzz': r1Buzz(room, p); break;
+    case 'keep': r1Keep(room, p, !!a.keep); break;
     case 'judge': r1Judge(room, p, a.verdict === 'title' ? 'title' : a.verdict === 'artist' ? 'artist' : 'fail'); break;
     case 'begin': r24Begin(room, p); break;
     case 'hit': r24Hit(room, p); break;
@@ -558,7 +574,7 @@ function view(room, p) {
       queue, out: r.out, answeringDeadline: r.answering ? r.answering.deadline : null, answeringExpired: !!(r.answering && r.answering.expired),
       playedMs: played(r), playing: !!r.startedAt, chooseDeadline: r.chooseDeadline,
       lastVerdict: r.lastVerdict && now() - r.lastVerdict.at < 2500 ? r.lastVerdict : null,
-      reveal: r.step === 'reveal' ? { ...r.reveal, song: pub(r.song) } : null
+      reveal: r.step === 'reveal' ? { ...r.reveal, song: pub(r.song), until: r.revealUntil } : null
     };
     if (p && p.id === r.proposerId && r.song) { v.r1.song = pub(r.song); v.r1.songPreview = r.song.preview; }
     const hitReveal = r.step === 'reveal' && r.reveal && r.reveal.result === 'in';

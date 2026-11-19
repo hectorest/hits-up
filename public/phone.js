@@ -176,7 +176,16 @@
     if (r.step === 'reveal') {
       const rv = r.reveal, song = rv.song || {}, win = rv.winnerGroupId && group(s, rv.winnerGroupId);
       return `<div class="grow center fade-in">${cover(song, 160, 20)}<div class="title" style="font-size:30px">${esc(song.title)}</div><div class="mut">${esc(song.artist)}</div>
-        ${rv.result === 'in' ? `<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;justify-content:center">${chip(win)}<b>+${rv.pts}</b><span class="mut">· entra al mazo</span></div>` : '<div class="pill">Nadie la acertó · se descarta</div>'}</div>${hb}`;
+        ${rv.result === 'in' ? `<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;justify-content:center">${chip(win)}<b>+${rv.pts}</b><span class="mut">· entra al mazo</span></div>`
+          : rv.pending ? (isProp
+            ? `<div class="pill">Nadie la acertó</div><div style="font-weight:600">¿La metes igualmente en el mazo?</div>
+               <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;width:100%">
+                 <button type="button" class="btn btn-sec" data-act="keep" data-arg="0">Descartar</button>
+                 <button type="button" class="btn btn-acc" data-act="keep" data-arg="1">Meterla</button></div>
+               <div class="mut" style="font-size:13px">Si no eliges en <b data-until="${rv.until}" data-fmt="sec"></b> s, entra al mazo. No da puntos.</div>`
+            : `<div class="pill">Nadie la acertó</div><div class="mut">${esc(r.proposerName)} decide si entra al mazo.</div>`)
+          : rv.result === 'kept' ? '<div class="pill">Entra al mazo sin acertar · sin puntos</div>'
+          : '<div class="pill">Nadie la acertó · se descarta</div>'}</div>${hb}`;
     }
     // Sonando o respondiendo
     const ans = r.queue.find(q => q.answering), ansG = ans && group(s, ans.groupId);
@@ -483,6 +492,7 @@
       case 'setGroups': return act('setGroups', { n: +arg });
       case 'buzz': if (navigator.vibrate) navigator.vibrate(40); return act('buzz');
       case 'judge': return act('judge', { verdict: arg });
+      case 'keep': return act('keep', { keep: arg === '1' });
       case 'faltaChoice': return act('faltaChoice', { choice: arg });
       case 'replay': try { audio.currentTime = 0; audio.play().catch(() => {}); } catch (err) {} return;
       case 'endRound': if (confirm('¿Terminar la ronda ahora?')) return act('endRound'); return;

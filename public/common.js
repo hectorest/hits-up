@@ -82,7 +82,7 @@ window.HU = (() => {
       <div class="display" style="font-weight:700;font-size:${Math.round(size * 0.4)}px" data-until="${until}" data-fmt="sec">${label ?? ''}</div></div>`;
   };
   const ROUNDS = {
-    1: { name: 'La Selección', rules: ['Cada grupo propone canciones por turnos.', 'Los rivales pulsan y responden en 5 s.', 'Solo entran al mazo las que alguien acierta.'], pts: 'Título +2 (+1 si es en los primeros 10 s) · Solo artista +1 · Fallo −1 · Tu canción acertada +1' },
+    1: { name: 'La Selección', rules: ['Cada grupo propone canciones por turnos.', 'Los rivales pulsan y responden en 5 s.', 'Si nadie la acierta, quien la propuso decide si entra al mazo.'], pts: 'Título +2 (+1 si es en los primeros 10 s) · Solo artista +1 · Fallo −1 · Tu canción acertada +1' },
     2: { name: 'Descríbela', rules: ['Una persona escucha la canción con auriculares.', 'La describe sin decir título ni artista.', 'Prohibido cantar o tararear.'], pts: '2 puntos por carta' },
     3: { name: 'Taréala', rules: ['Tararea la melodía: na-na-na, silbar, pom-pom.', 'Gestos moderados, sin bailar.', 'Prohibido cantar la letra o decir palabras.'], pts: '3 puntos por carta' },
     4: { name: 'Báilala', rules: ['Baila y haz mímica con la canción.', 'Prohibido hacer cualquier sonido.', 'Ni mover los labios con la letra.'], pts: '4 puntos por carta' }

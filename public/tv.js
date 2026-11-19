@@ -145,6 +145,11 @@
           <div style="font-size:32px" class="mut">${esc(song.artist)}</div>
           ${rv.result === 'in'
             ? `<div style="display:flex;align-items:center;gap:14px;font-size:26px;flex-wrap:wrap"><span class="pill" style="background:#12261D;border-color:#1f4a35;color:#6FE3AE;font-size:22px">Entra al mazo</span>${chip(win, 22)}<b>+${rv.pts}</b><span class="mut">· ${esc(gp.name)} +1</span></div>`
+            : rv.pending
+            ? `<div style="display:flex;flex-direction:column;gap:12px"><span class="pill" style="font-size:22px;align-self:flex-start">Nadie la acertó</span>
+                <div style="font-size:24px">${esc(r.proposerName)} decide si entra igualmente al mazo <span class="mut">(<b data-until="${rv.until}" data-fmt="sec"></b> s)</span></div></div>`
+            : rv.result === 'kept'
+            ? `<div><span class="pill" style="background:#12261D;border-color:#1f4a35;color:#6FE3AE;font-size:22px">Entra al mazo sin acertar · sin puntos</span></div>`
             : `<div><span class="pill" style="font-size:22px">Nadie la acertó · se descarta</span></div>`}
         </div></section>`);
     }

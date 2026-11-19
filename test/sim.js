@@ -3,7 +3,7 @@
 process.env.DEEZER_MOCK = '1';
 const { server, T } = require('../server.js');
 // Acelerar tiempos para la prueba
-Object.assign(T, { PREVIEW: 3000, ANSWER: 800, JUDGE_MAX: 1500, REVEAL_HIT: 300, BONUS: 1500, REVEAL: 300, TURN: { 2: 2500, 3: 8000, 4: 2500 }, TURN_END: 300, FALTA: 1500, DECK_TOTAL: 6, CARRY_MIN: 300, HIT_WINDOW: 400 });
+Object.assign(T, { PREVIEW: 3000, ANSWER: 800, JUDGE_MAX: 1500, REVEAL_HIT: 300, KEEP_DECIDE: 700, REVEAL_SHORT: 200, BONUS: 1500, REVEAL: 300, TURN: { 2: 2500, 3: 8000, 4: 2500 }, TURN_END: 300, FALTA: 1500, DECK_TOTAL: 6, CARRY_MIN: 300, HIT_WINDOW: 400 });
 
 const PORT = 3999;
 const base = `http://localhost:${PORT}`;
@@ -66,7 +66,7 @@ function listen(url, onState) {
   const names = Object.keys(P);
   const byId = id => names.find(n => P[n] === id);
   const songs = (await (await fetch(base + '/api/search?q=zzz')).json()).results;
-  let si = 0, guard = 0, sawBonus = false, sawDiscard = false, sawArtist = false, sawLeak = false;
+  let keepTurn = 0; let si = 0, guard = 0, sawBonus = false, sawDiscard = false, sawArtist = false, sawLeak = false;
   while (tv.phase === 'r1' && guard++ < 600) {
     const r1 = tv.r1;
     if (r1.step !== 'choosing') { await sleep(80); continue; }
@@ -85,7 +85,19 @@ function listen(url, onState) {
     const own = names.find(n => n !== prop && states[n].me.groupId === groupId);
     if (own) { const b = await act(own, 'buzz'); if (!b.error) sawLeak = true; }
     const mode = si % 4;
-    if (mode === 0) { const end = Date.now() + T.PREVIEW + 600; while (Date.now() < end) { if (tv.r1 && tv.r1.reveal && tv.r1.reveal.result === 'discard') sawDiscard = true; await sleep(40); } }
+    if (mode === 0) {
+      const end = Date.now() + T.PREVIEW + 600;
+      while (Date.now() < end && !(tv.r1 && tv.r1.reveal && tv.r1.reveal.pending)) await sleep(40);
+      check(tv.r1 && tv.r1.reveal && tv.r1.reveal.pending, 'Si nadie acierta, toca decidir si entra al mazo');
+      check((await act(rivals[0], 'keep', { keep: true })).error, 'Solo decide quien propuso la canción');
+      const before = tv.deckSize, scores = tv.groups.map(g => g.score).join();
+      keepTurn = (keepTurn || 0) + 1;
+      if (keepTurn === 1) { await act(prop, 'keep', { keep: false }); await sleep(60); check(tv.deckSize === before && tv.r1.reveal.result === 'discard', 'Descartar: no entra al mazo'); }
+      else if (keepTurn === 2) { await act(prop, 'keep', { keep: true }); await sleep(60); check(tv.deckSize === before + 1 && tv.r1.reveal.result === 'kept', 'Meter en el mazo: entra sin acertar'); }
+      else { await sleep(T.KEEP_DECIDE + 300); check(tv.phase !== 'r1' || tv.deckSize === before + 1, 'Sin decisión, entra al mazo por defecto'); }
+      check(tv.groups.map(g => g.score).join() === scores, 'Entrar sin acertar no da puntos');
+      sawDiscard = true;
+    }
     else {
       await act(rivals[0], 'buzz'); await act(rivals[1], 'buzz'); await sleep(60);
       check(tv.r1.step === 'answering' && tv.r1.queue.length >= 1 && tv.r1.audio && !tv.r1.audio.playing, 'Al pulsar se pausa la música y se forma la cola');
