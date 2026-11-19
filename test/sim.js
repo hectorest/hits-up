@@ -48,6 +48,10 @@ function listen(url, onState) {
   await act('Ana', 'joinGroup', { groupId: 'g0' }); await act('Bea', 'joinGroup', { groupId: 'g0' });
   await act('Carlos', 'joinGroup', { groupId: 'g1' }); await act('Dani', 'joinGroup', { groupId: 'g1' });
   await act('Eva', 'joinGroup', { groupId: 'g2' });
+  check((await act('Eva', 'renameGroup', { groupId: 'g0', name: 'Intrusos' })).error, 'No se puede renombrar un grupo ajeno');
+  await act('Bea', 'renameGroup', { groupId: 'g0', name: '  Los   <b>Fieras</b>  ' }); await sleep(80);
+  check(tv.groups[0].name === 'Los <b>Fieras</b>', 'Un miembro renombra su grupo (se recorta y guarda el texto tal cual)');
+  check((await act('Carlos', 'renameGroup', { groupId: 'g1', name: 'los <b>fieras</b>' })).error, 'No se repiten nombres de grupo');
   const search = await (await fetch(base + '/api/search?q=queen')).json();
   check(search.results.length > 0, 'Búsqueda devuelve resultados');
   await act('Ana', 'listAdd', { song: search.results[0] });

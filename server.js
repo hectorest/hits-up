@@ -424,6 +424,17 @@ async function handleAction(room, p, a) {
       room.players.forEach(pl => { if (pl.groupId && !groupById(room, pl.groupId)) pl.groupId = null; });
       break;
     }
+    case 'renameGroup': {
+      if (room.phase !== 'lobby') fail('Los nombres se cambian antes de empezar');
+      const g = groupById(room, a.groupId);
+      if (!g) fail('Grupo no válido');
+      if (p.groupId !== g.id && !host) fail('Solo puede cambiarlo alguien del grupo');
+      const name = String(a.name || '').replace(/\s+/g, ' ').trim().slice(0, 18);
+      if (!name) fail('Escribe un nombre');
+      if (room.groups.some(o => o.id !== g.id && o.name.toLowerCase() === name.toLowerCase())) fail('Ya hay un grupo con ese nombre');
+      g.name = name;
+      break;
+    }
     case 'joinGroup': {
       if (!groupById(room, a.groupId)) fail('Grupo no válido');
       if (room.phase !== 'lobby' && p.groupId) fail('Ya tienes grupo');

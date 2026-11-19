@@ -131,7 +131,8 @@
       : `<div class="mut" style="font-size:14px">Cuando estéis todos, el anfitrión empezará la partida.</div>`;
     return `${kicker(null, 'Sala ' + s.code)}<div class="title">Hola, ${esc(me.name)}</div>
       <div style="font-weight:600">${me.groupId ? 'Tu grupo' : 'Elige tu grupo'}</div>
-      <div style="display:flex;flex-direction:column;gap:8px">${groups}</div>${host}`;
+      <div style="display:flex;flex-direction:column;gap:8px">${groups}</div>
+      ${me.groupId ? `<button type="button" class="btn btn-sec btn-block" data-act="renameGroup">Cambiar el nombre del grupo</button>` : ''}${host}`;
   }
   function roundIntro(s) {
     const R = ROUNDS[s.round];
@@ -430,6 +431,13 @@
     switch (a) {
       case 'prepTab': prepTab = arg; lastHtml = ''; if (S) render(S); return;
       case 'joinGroup': return act('joinGroup', { groupId: arg });
+      case 'renameGroup': {
+        const g = S && myGroup(S);
+        if (!g) return;
+        const name = prompt('Nombre de vuestro grupo (máx. 18 letras)', g.name);
+        if (name === null || !name.trim() || name.trim() === g.name) return;
+        return act('renameGroup', { groupId: g.id, name: name.trim() });
+      }
       case 'setGroups': return act('setGroups', { n: +arg });
       case 'buzz': if (navigator.vibrate) navigator.vibrate(40); return act('buzz');
       case 'judge': return act('judge', { verdict: arg });
