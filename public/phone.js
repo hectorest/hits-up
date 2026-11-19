@@ -9,6 +9,7 @@
   let code = (params.get('c') || '').toUpperCase();
   let pid = code ? localStorage.getItem('hu_pid_' + code) : null;
   let S = null, stopConn = null, lastHtml = '', busy = false, errCount = 0;
+  let prepTab = 'partida'; // pestañas de la sala: 'partida' | 'canciones'
 
   /* ---------------- Audio ---------------- */
   const audio = new Audio();
@@ -304,6 +305,12 @@
       <div class="grow"></div>${btn}`;
   }
 
+  const prepNav = (s, first) => `<div class="tabs" role="tablist" style="margin-bottom:4px">
+      <button type="button" role="tab" class="${prepTab === 'partida' ? 'on' : ''}" data-act="prepTab" data-arg="partida">${first}</button>
+      <button type="button" role="tab" class="${prepTab === 'canciones' ? 'on' : ''}" data-act="prepTab" data-arg="canciones">Mis canciones · ${s.me.list.length}</button></div>`;
+  const songsIntro = s => `${kicker(myGroup(s), 'Sala ' + s.code)}<div class="title">Mis canciones</div>
+      <div class="mut" style="font-size:14px;line-height:1.5">Busca canciones y añádelas a tu lista. En la ronda 1, cuando te toque, podrás proponerlas con un toque.</div>`;
+
   /* ---------------- Pintar ---------------- */
   function render(s) {
     S = s;
@@ -312,8 +319,15 @@
       html = `${kicker(null, 'Sala ' + s.code)}<div class="title">La partida ya ha empezado</div><div style="font-weight:600">Únete a un grupo</div>
         <div style="display:flex;flex-direction:column;gap:8px">${s.groups.map(g => `<button type="button" class="gbtn" data-act="joinGroup" data-arg="${g.id}">${dot(g.color, 16)}<span style="font-weight:700">${esc(g.name)}</span></button>`).join('')}</div>`;
     } else switch (s.phase) {
-      case 'lobby': html = lobby(s); mode = 'list'; title = 'Prepara canciones para la ronda 1: búscalas y añádelas a tu lista.'; break;
-      case 'roundIntro': html = roundIntro(s); if (s.round === 1) { mode = 'list'; title = 'Aún puedes preparar tu lista.'; } break;
+      case 'lobby':
+        if (prepTab === 'canciones') { html = prepNav(s, 'Partida') + songsIntro(s); mode = 'list'; }
+        else html = prepNav(s, 'Partida') + lobby(s);
+        break;
+      case 'roundIntro':
+        if (s.round !== 1) { html = roundIntro(s); break; }
+        if (prepTab === 'canciones') { html = prepNav(s, 'Ronda 1') + songsIntro(s); mode = 'list'; }
+        else html = prepNav(s, 'Ronda 1') + roundIntro(s);
+        break;
       case 'r1':
         html = s.r1 ? r1(s) : '';
         if (s.r1 && s.r1.step === 'choosing') {
@@ -358,7 +372,7 @@
   }
   function renderPanel() {
     if (!S) return;
-    document.querySelectorAll('.tabs button').forEach(b => b.classList.toggle('on', b.dataset.tab === tab));
+    $panel.querySelectorAll('.tabs button').forEach(b => b.classList.toggle('on', b.dataset.tab === tab));
     $('tab-search').style.display = tab === 'search' ? 'flex' : 'none';
     $('tab-list').style.display = tab === 'list' ? 'flex' : 'none';
     $('listCount').textContent = S.me.list.length;
@@ -414,6 +428,7 @@
     const a = b.dataset.act, arg = b.dataset.arg;
     unlockAudio();
     switch (a) {
+      case 'prepTab': prepTab = arg; lastHtml = ''; if (S) render(S); return;
       case 'joinGroup': return act('joinGroup', { groupId: arg });
       case 'setGroups': return act('setGroups', { n: +arg });
       case 'buzz': if (navigator.vibrate) navigator.vibrate(40); return act('buzz');

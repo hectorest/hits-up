@@ -44,7 +44,10 @@ try:
         carlos.click('[data-act=joinGroup][data-arg=g0]')
         bea.click('[data-act=joinGroup][data-arg=g1]')
         # lista personal
+        bea.click('[data-act=prepTab][data-arg=canciones]'); bea.click('[data-tab=search]')
         bea.fill('#q', 'queen'); bea.wait_for_selector('#results li'); bea.click('#results [data-pact=add]')
+        shot(bea, '02b_movil_mis_canciones')
+        bea.click('[data-act=prepTab][data-arg=partida]')
         time.sleep(0.5)
         shot(tv, '01_tv_sala'); shot(ana, '02_movil_sala')
         ana.click('[data-act=start]'); tv.wait_for_selector('text=La Selección')
