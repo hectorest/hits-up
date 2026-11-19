@@ -10,6 +10,7 @@
   let pid = code ? localStorage.getItem('hu_pid_' + code) : null;
   let S = null, stopConn = null, lastHtml = '', busy = false, errCount = 0;
   let prepTab = 'partida'; // pestañas de la sala: 'partida' | 'canciones'
+  let editingName = false, focusName = false;
 
   /* ---------------- Audio ---------------- */
   const audio = new Audio();
@@ -121,9 +122,19 @@
   /* ---------------- Pantallas ---------------- */
   function lobby(s) {
     const me = s.me;
-    const groups = s.groups.map(g => `<button type="button" class="gbtn ${me.groupId === g.id ? 'on' : ''}" data-act="joinGroup" data-arg="${g.id}">
-        ${dot(g.color, 16)}<div style="flex:1;min-width:0"><div style="font-weight:700;font-size:17px">${esc(g.name)}</div>
-        <div class="mut" style="font-size:13px">${g.players.map(p => esc(p.name)).join(', ') || 'Nadie todavía'}</div></div></button>`).join('');
+    const members = g => `<div class="mut" style="font-size:13px">${g.players.map(p => esc(p.name)).join(', ') || 'Nadie todavía'}</div>`;
+    const groups = s.groups.map(g => {
+      if (g.id !== me.groupId) return `<button type="button" class="gbtn" data-act="joinGroup" data-arg="${g.id}">
+        ${dot(g.color, 16)}<div style="flex:1;min-width:0"><div style="font-weight:700;font-size:17px">${esc(g.name)}</div>${members(g)}</div></button>`;
+      if (editingName) return `<form class="gbtn on" id="gform" style="flex-direction:column;align-items:stretch;gap:10px" autocomplete="off">
+        <label for="gname" style="display:flex;align-items:center;gap:10px;font-size:13px" class="mut">${dot(g.color, 12)}Nombre de vuestro grupo</label>
+        <input id="gname" class="input" maxlength="18" value="${esc(g.name)}" enterkeyhint="done">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+          <button type="button" class="btn btn-sec" data-act="cancelName">Cancelar</button>
+          <button type="submit" class="btn btn-acc">Guardar</button></div></form>`;
+      return `<div class="gbtn on">${dot(g.color, 16)}<div style="flex:1;min-width:0"><div style="font-weight:700;font-size:17px;overflow-wrap:anywhere">${esc(g.name)}</div>${members(g)}</div>
+        <button type="button" class="icon-btn" data-act="editName" aria-label="Cambiar el nombre del grupo">${ICON.edit}</button></div>`;
+    }).join('');
     const host = me.isHost ? `<div class="host"><div class="mut" style="font-size:12px;text-transform:uppercase;letter-spacing:.08em;font-weight:600">Eres el anfitrión</div>
         <div class="field"><label>Número de grupos</label><div class="seg">${[2, 3, 4, 5].map(n => `<button type="button" class="${s.groups.length === n ? 'on' : ''}" data-act="setGroups" data-arg="${n}">${n}</button>`).join('')}</div></div>
         <button type="button" class="btn btn-acc btn-block" data-act="start">Empezar partida</button>
@@ -131,8 +142,7 @@
       : `<div class="mut" style="font-size:14px">Cuando estéis todos, el anfitrión empezará la partida.</div>`;
     return `${kicker(null, 'Sala ' + s.code)}<div class="title">Hola, ${esc(me.name)}</div>
       <div style="font-weight:600">${me.groupId ? 'Tu grupo' : 'Elige tu grupo'}</div>
-      <div style="display:flex;flex-direction:column;gap:8px">${groups}</div>
-      ${me.groupId ? `<button type="button" class="btn btn-sec btn-block" data-act="renameGroup">Cambiar el nombre del grupo</button>` : ''}${host}`;
+      <div style="display:flex;flex-direction:column;gap:8px">${groups}</div>${host}`;
   }
   function roundIntro(s) {
     const R = ROUNDS[s.round];
@@ -340,7 +350,14 @@
       case 'standings': html = standings(s, false); break;
       case 'final': html = standings(s, true); break;
     }
-    if (html !== lastHtml) { $main.innerHTML = html; lastHtml = html; refreshPlayButtons(); }
+    if (s.phase !== 'lobby' || !s.me.groupId) editingName = false;
+    if (html !== lastHtml) {
+      const ae = document.activeElement;
+      const keep = ae && ae.id && $main.contains(ae) && ae.tagName === 'INPUT' ? { id: ae.id, v: ae.value, a: ae.selectionStart, b: ae.selectionEnd } : null;
+      $main.innerHTML = html; lastHtml = html; refreshPlayButtons();
+      if (keep) { const el = $(keep.id); if (el) { el.value = keep.v; el.focus(); try { el.setSelectionRange(keep.a, keep.b); } catch (e) {} } }
+    }
+    if (focusName) { focusName = false; const el = $('gname'); if (el) { el.focus(); el.select(); } }
     setPanel(mode, title);
     syncCardAudio(s);
   }
@@ -422,6 +439,16 @@
     }
   });
 
+  $main.addEventListener('submit', async e => {
+    if (e.target.id !== 'gform') return;
+    e.preventDefault();
+    const g = S && myGroup(S), name = $('gname').value.trim();
+    if (!g) return;
+    if (!name) return toast('Escribe un nombre', true);
+    if (name !== g.name) { const r = await act('renameGroup', { groupId: g.id, name }); if (r.error) return; }
+    editingName = false; lastHtml = ''; render(S);
+  });
+
   /* ---------------- Botones de la pantalla ---------------- */
   $main.addEventListener('click', async e => {
     const b = e.target.closest('[data-act]');
@@ -431,13 +458,8 @@
     switch (a) {
       case 'prepTab': prepTab = arg; lastHtml = ''; if (S) render(S); return;
       case 'joinGroup': return act('joinGroup', { groupId: arg });
-      case 'renameGroup': {
-        const g = S && myGroup(S);
-        if (!g) return;
-        const name = prompt('Nombre de vuestro grupo (máx. 18 letras)', g.name);
-        if (name === null || !name.trim() || name.trim() === g.name) return;
-        return act('renameGroup', { groupId: g.id, name: name.trim() });
-      }
+      case 'editName': editingName = true; focusName = true; lastHtml = ''; return render(S);
+      case 'cancelName': editingName = false; lastHtml = ''; return render(S);
       case 'setGroups': return act('setGroups', { n: +arg });
       case 'buzz': if (navigator.vibrate) navigator.vibrate(40); return act('buzz');
       case 'judge': return act('judge', { verdict: arg });
