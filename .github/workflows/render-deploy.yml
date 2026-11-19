@@ -1,0 +1,20 @@
+name: Desplegar en Render
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Avisar a Render
+        env:
+          HOOK: ${{ secrets.RENDER_DEPLOY_HOOK_URL }}
+        run: |
+          if [ -z "$HOOK" ]; then
+            echo "Falta el secreto RENDER_DEPLOY_HOOK_URL: despliega a mano en Render o añádelo en Settings > Secrets and variables > Actions."
+            exit 0
+          fi
+          curl -fsS -X POST "$HOOK" > /dev/null && echo "Despliegue lanzado en Render"
