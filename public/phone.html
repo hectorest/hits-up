@@ -49,6 +49,11 @@
   .searchbar { position: sticky; top: 0; z-index: 5; background: var(--bg); padding: 8px 0; margin: -8px 0 0; }
   body.searching .wrap { padding-bottom: 75vh; }
   ul.songs li { padding: 6px 8px; }
+  .chips { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 2px; scrollbar-width: none; }
+  .chips::-webkit-scrollbar { display: none; }
+  .chip-btn { flex: none; height: 36px; padding: 0 13px; border-radius: 999px; border: 1px solid var(--line2); background: transparent; color: var(--txt); font-weight: 600; font-size: 13px; }
+  .chip-btn.on { background: var(--acc); color: var(--acc-ink); border-color: var(--acc); }
+  .sugg-head { display: flex; align-items: center; justify-content: space-between; font-size: 13px; color: var(--mut); min-height: 32px; }
   .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
   #panel { display: flex; flex-direction: column; gap: 12px; }
 </style>
@@ -67,6 +72,8 @@
         <label for="q" class="sr-only">Título o artista</label>
         <div class="search"><span id="searchIcon"></span><input id="q" type="search" autocomplete="off" autocapitalize="off" spellcheck="false" enterkeyhint="search" placeholder="Busca título o artista"></div>
       </div>
+      <div id="suggBar" class="chips" role="group" aria-label="Sugerencias"></div>
+      <div id="suggHead" class="sugg-head"></div>
       <ul class="songs" id="results"></ul>
       <div class="mut" id="resultsNote" style="font-size:13px"></div>
       <div class="warn" style="font-size:12px;padding:8px 10px"><span id="muteIcon"></span><span>Si escuchas un fragmento, baja el volumen: los demás pueden oírlo.</span></div>

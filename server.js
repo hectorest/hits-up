@@ -554,7 +554,7 @@ async function handleAction(room, p, a) {
 const pub = s => s && { id: s.id, title: s.title, artist: s.artist, cover: s.cover };
 function view(room, p) {
   const v = {
-    now: now(), code: room.code, phase: room.phase, round: room.round, quota: room.quota, deckSize: room.deck.length, hostId: room.hostId,
+    now: now(), code: room.code, phase: room.phase, round: room.round, quota: room.quota, deckSize: room.deck.length, deckIds: room.deck.map(s => s.id), hostId: room.hostId,
     groups: room.groups.map(g => ({
       id: g.id, name: g.name, color: g.color, score: g.score, fichas: g.fichas, inDeck: inDeck(room, g.id),
       players: groupPlayers(room, g.id).map(pl => ({ id: pl.id, name: pl.name, online: pl.conns.size > 0 }))

@@ -66,6 +66,9 @@ window.HU = (() => {
     try { const t = await dzDirect('/track/' + encodeURIComponent(id)); return t && t.preview || null; } catch (e) { return null; }
   }
 
+  const norm = s => String(s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\(.*?\)|\[.*?\]/g, '').replace(/[^a-z0-9]+/g, ' ').trim();
+  const shuffle = a => { a = a.slice(); for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
+
   const group = (s, id) => s.groups.find(g => g.id === id);
   const dot = (color, size = 12) => `<span class="dot" style="background:${color};width:${size}px;height:${size}px"></span>`;
   const chip = (g, size) => g ? `<span class="chip" style="--gc:${g.color}${size ? ';font-size:' + size + 'px' : ''}">${dot(g.color, 10)}${esc(g.name)}</span>` : '';
@@ -144,5 +147,5 @@ window.HU = (() => {
     setTimeout(() => el.remove(), 2600);
   }
 
-  return { esc, sNow, connect, post, get, search, freshPreview, fadeOut, group, dot, chip, cover, vinyl, fmt, ring, ROUNDS, ICON, toast };
+  return { esc, sNow, connect, post, get, search, freshPreview, fadeOut, dz: dzDirect, mapTrack, isNoise, norm, shuffle, group, dot, chip, cover, vinyl, fmt, ring, ROUNDS, ICON, toast };
 })();

@@ -396,7 +396,76 @@
   }
 
   /* ---------------- Panel de canciones ---------------- */
-  let panelMode = null, tab = 'search', results = [], hiddenCount = 0, searchSeq = 0, searchTimer = null;
+  let panelMode = null, tab = 'search', results = [], hiddenCount = 0, searchSeq = 0, searchTimer = null, shown = [];
+  const searchCache = new Map(); // búsquedas recientes (10 min)
+
+  /* Sugerencias con el buscador vacío */
+  const SUGG = [
+    { id: 'hits', label: 'Éxitos', head: 'Éxitos del momento' }, { id: 'sim', label: 'Parecidas', head: 'Parecidas a tu mazo y tu lista' }, { id: 'd80', label: '80s', q: 'éxitos años 80' }, { id: 'd90', label: '90s', q: 'éxitos años 90' },
+    { id: 'd00', label: '2000s', q: 'éxitos 2000' }, { id: 'd10', label: '2010s', q: 'éxitos 2010' }
+  ];
+  const PAGE = 8;
+  let suggSrc = 'hits', suggLoading = false, suggSeq = 0, suggNote = '';
+  const suggPool = {}, suggPos = {}, relCache = {};
+  const cleanTracks = list => {
+    const seen = new Set();
+    return (list || []).filter(t => t && t.preview && t.readable !== false && !HU.isNoise(t)).map(HU.mapTrack).filter(x => {
+      const k = HU.norm(x.title) + '|' + HU.norm(x.artist);
+      if (seen.has(x.id) || seen.has(k)) return false;
+      seen.add(x.id); seen.add(k); return true;
+    });
+  };
+  async function playlistPool(q) {
+    const r = await HU.dz('/search/playlist?limit=10&q=' + encodeURIComponent(q));
+    const isDeezer = p => p.user && /deezer/i.test(p.user.name) ? 1 : 0;
+    const pls = (r.data || []).filter(p => p.nb_tracks >= 20).sort((a, b) => isDeezer(b) - isDeezer(a)).slice(0, 2);
+    const out = [];
+    for (const p of pls) { const t = await HU.dz(`/playlist/${p.id}/tracks?limit=100`); out.push(...(t.data || [])); }
+    return out;
+  }
+  async function similarPool() {
+    const seeds = HU.shuffle([...(S.deckIds || []), ...S.me.list.map(x => x.id)]).slice(0, 3);
+    if (!seeds.length) return null;
+    const artists = new Map();
+    for (const id of seeds) {
+      const t = await HU.dz('/track/' + encodeURIComponent(id)).catch(() => null);
+      if (!t || !t.artist) continue;
+      const aid = t.artist.id;
+      if (!relCache[aid]) relCache[aid] = ((await HU.dz(`/artist/${aid}/related?limit=8`).catch(() => null)) || {}).data || [];
+      HU.shuffle(relCache[aid]).slice(0, 3).forEach(a => artists.set(a.id, a));
+    }
+    const out = [];
+    for (const a of [...artists.values()].slice(0, 6)) out.push(...((await HU.dz(`/artist/${a.id}/top?limit=5`).catch(() => null)) || {}).data || []);
+    return out;
+  }
+  async function loadSugg(src, more) {
+    suggSrc = src;
+    const seq = ++suggSeq;
+    if (more && suggPool[src] && suggPool[src].length > PAGE) {
+      suggPos[src] = (suggPos[src] + PAGE) % suggPool[src].length;
+      return renderPanel();
+    }
+    suggLoading = true; suggNote = ''; renderPanel();
+    try {
+      const src0 = SUGG.find(x => x.id === src);
+      const raw = src === 'hits' ? (await HU.dz('/chart/0/tracks?limit=100')).data : src === 'sim' ? await similarPool() : await playlistPool(src0.q);
+      if (seq !== suggSeq) return;
+      if (raw === null) { suggPool[src] = []; suggNote = 'Cuando haya canciones en el mazo o en tu lista, aquí saldrán otras parecidas.'; }
+      else { suggPool[src] = HU.shuffle(cleanTracks(raw)); suggNote = suggPool[src].length ? '' : 'No hay sugerencias ahora mismo.'; }
+    } catch (e) {
+      if (seq !== suggSeq) return;
+      suggPool[src] = []; suggNote = 'No se pudieron cargar las sugerencias.';
+    }
+    suggPos[src] = 0;
+    suggLoading = false;
+    renderPanel();
+  }
+  function currentSugg() {
+    const deck = new Set(S.deckIds || []);
+    const pool = (suggPool[suggSrc] || []).filter(x => !deck.has(x.id));
+    const pos = (suggPos[suggSrc] || 0) % Math.max(1, pool.length);
+    return pool.slice(pos, pos + PAGE).concat(pool.slice(0, Math.max(0, pos + PAGE - pool.length))).slice(0, PAGE);
+  }
   const inList = id => S.me.list.some(x => x.id === id);
   function songRow(song, key, actions) {
     return `<li>${cover(song, 44, 8)}<div class="s-meta"><div class="s-title">${esc(song.title)}</div><div class="s-art">${esc(song.artist)}${song.album ? ' · ' + esc(song.album) : ''}</div></div>
@@ -417,10 +486,22 @@
     $('tab-list').style.display = tab === 'list' ? 'flex' : 'none';
     $('listCount').textContent = S.me.list.length;
     const propose = panelMode === 'propose';
-    $('results').innerHTML = results.map(song => songRow(song, 'r' + song.id, propose
+    const qv = $('q').value.trim();
+    const suggMode = tab === 'search' && !qv;
+    $('suggBar').style.display = suggMode ? 'flex' : 'none';
+    $('suggHead').style.display = suggMode ? 'flex' : 'none';
+    if (suggMode) {
+      $('suggBar').innerHTML = SUGG.map(x => `<button type="button" class="chip-btn ${x.id === suggSrc ? 'on' : ''}" data-sugg="${x.id}">${esc(x.label)}</button>`).join('');
+      if (!suggPool[suggSrc] && !suggLoading) { loadSugg(suggSrc); return; }
+      shown = suggLoading ? [] : currentSugg();
+      $('suggHead').innerHTML = suggLoading ? '<span>Cargando sugerencias…</span>'
+        : `<span>Sugerencias · ${esc((o => o.head || 'Éxitos de los ' + o.label)(SUGG.find(x => x.id === suggSrc)))}</span>${shown.length ? '<button type="button" class="sm-btn btn-sec" data-sugg-more="1">Otras</button>' : ''}`;
+    } else shown = results;
+    $('results').innerHTML = shown.map(song => songRow(song, 'r' + song.id, propose
       ? `<button type="button" class="sm-btn btn-acc" data-pact="propose" data-src="r" data-id="${esc(song.id)}">Proponer</button>`
       : inList(song.id) ? `<button type="button" class="sm-btn btn-sec" disabled>En lista</button>` : `<button type="button" class="sm-btn btn-sec" data-pact="add" data-id="${esc(song.id)}">+ Lista</button>`)).join('');
-    $('resultsNote').textContent = hiddenCount ? `${hiddenCount} resultado${hiddenCount === 1 ? '' : 's'} oculto${hiddenCount === 1 ? '' : 's'} (karaoke y versiones)` : '';
+    $('resultsNote').textContent = suggMode ? (suggLoading ? '' : suggNote)
+      : hiddenCount ? `${hiddenCount} resultado${hiddenCount === 1 ? '' : 's'} oculto${hiddenCount === 1 ? '' : 's'} (karaoke y versiones)` : '';
     $('mylist').innerHTML = S.me.list.map(song => songRow(song, 'l' + song.id, propose
       ? `<button type="button" class="sm-btn btn-acc" data-pact="propose" data-src="l" data-id="${esc(song.id)}">Proponer</button>`
       : `<button type="button" class="sm-btn btn-sec" data-pact="remove" data-id="${esc(song.id)}">Quitar</button>`)).join('');
@@ -433,28 +514,40 @@
     window.scrollTo(0, Math.max(0, y));
   }
   $('q').addEventListener('focus', () => { searchToTop(); setTimeout(searchToTop, 350); });
+  // Búsqueda con espera: solo se pide cuando se deja de escribir 400 ms, con 2 letras o más
   $('q').addEventListener('input', () => {
     clearTimeout(searchTimer);
     const q = $('q').value.trim();
-    if (!q) { results = []; hiddenCount = 0; renderPanel(); return; }
+    if (!q) { searchSeq++; results = []; hiddenCount = 0; renderPanel(); return; }
+    if (q.length < 2) { searchSeq++; results = []; hiddenCount = 0; renderPanel(); $('resultsNote').textContent = 'Escribe al menos 2 letras.'; return; }
     searchTimer = setTimeout(async () => {
+      const key = q.toLowerCase();
+      const hit = searchCache.get(key);
       const seq = ++searchSeq;
-      $('resultsNote').textContent = 'Buscando…';
-      const r = await HU.search(q);
+      let r;
+      if (hit && Date.now() - hit.t < 600000) r = hit.r;
+      else {
+        $('resultsNote').textContent = 'Buscando…';
+        r = await HU.search(q);
+        if (!r.error) searchCache.set(key, { t: Date.now(), r });
+      }
       if (seq !== searchSeq) return;
       if (r.error) { results = []; hiddenCount = 0; renderPanel(); $('resultsNote').textContent = r.error; return; }
       results = r.results || []; hiddenCount = r.hidden || 0;
       renderPanel();
       if (!results.length) $('resultsNote').textContent = 'Sin resultados con fragmento.';
-    }, 350);
+    }, 400);
   });
   $panel.addEventListener('click', async e => {
     const t = e.target.closest('[data-tab]');
     if (t) { tab = t.dataset.tab; renderPanel(); if (tab === 'search') $('q').focus(); else document.body.classList.remove('searching'); return; }
+    const sg = e.target.closest('[data-sugg]');
+    if (sg) return loadSugg(sg.dataset.sugg, false);
+    if (e.target.closest('[data-sugg-more]')) return loadSugg(suggSrc, true);
     const b = e.target.closest('[data-pact]');
     if (!b || b.disabled) return;
     const id = b.dataset.id;
-    const song = results.find(x => x.id === id) || S.me.list.find(x => x.id === id);
+    let song = shown.find(x => x.id === id) || results.find(x => x.id === id) || S.me.list.find(x => x.id === id);
     if (!song) return;
     if (b.dataset.pact === 'play') return playSong(b.dataset.key, song);
     if (b.dataset.pact === 'add') { await act('listAdd', { song }); return; }
@@ -462,6 +555,8 @@
     if (b.dataset.pact === 'propose') {
       stopAudio();
       b.disabled = true;
+      const fresh = await HU.freshPreview(song.id); // el fragmento caduca a los ~15 min
+      if (fresh) song = { ...song, preview: fresh };
       const r = await act('propose', { song });
       if (!r.error) { $('q').value = ''; results = []; hiddenCount = 0; }
       else b.disabled = false;
