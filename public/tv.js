@@ -4,6 +4,7 @@
   const audio = new Audio();
   audio.preload = 'auto';
   window.__huAudio = audio; // para las pruebas automáticas
+  HU.fadeOut(audio);
   let audioKey = null, retriedKey = null, songId = null;
   audio.addEventListener('error', async () => {
     if (!audioKey || retriedKey === audioKey || !songId) return;
@@ -92,15 +93,22 @@
   function lobby(s) {
     const host = s.groups.flatMap(g => g.players).concat(s.unassigned).find(p => p.id === s.hostId);
     const url = joinUrl.replace(/^https?:\/\//, '');
+    const link = joinUrl.replace(/\/$/, '') + '/?c=' + s.code;
     return header(s) + `<main class="body">
-      <section class="card" style="flex:1;padding:36px;display:flex;flex-direction:column;justify-content:center;gap:16px">
-        <div class="mut" style="font-size:20px">Entra desde el móvil en</div>
-        <div class="big" style="font-size:52px;word-break:break-all">${esc(url)}</div>
-        <div class="mut" style="font-size:20px;margin-top:12px">y escribe el código</div>
-        <div class="big" style="font-size:150px;color:var(--acc);letter-spacing:0.06em">${esc(s.code)}</div>
-        <div class="mut" style="font-size:18px">${host ? `${esc(host.name)} es quien empieza la partida desde su móvil.` : 'El primero en entrar será el anfitrión.'}</div>
+      <section class="card" style="flex:1;padding:32px 36px;display:flex;align-items:center;gap:36px">
+        <div style="flex:none;display:flex;flex-direction:column;align-items:center;gap:12px">
+          <img src="/api/qr.svg?text=${encodeURIComponent(link)}" width="280" height="280" alt="Código QR para entrar en la sala" style="display:block;border-radius:18px;background:#fff">
+          <div style="font-weight:700;font-size:20px">Escanea para entrar</div>
+        </div>
+        <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:10px">
+          <div class="mut" style="font-size:18px">O entra en</div>
+          <div class="big" style="font-size:34px;word-break:break-all">${esc(url)}</div>
+          <div class="mut" style="font-size:18px;margin-top:8px">con el código</div>
+          <div class="big" style="font-size:112px;color:var(--acc);letter-spacing:0.06em">${esc(s.code)}</div>
+          <div class="mut" style="font-size:16px">${host ? `${esc(host.name)} es quien empieza la partida desde su móvil.` : 'El primero en entrar será el anfitrión.'}</div>
+        </div>
       </section>
-      <section style="width:440px;display:flex;flex-direction:column;gap:14px">
+      <section style="width:400px;display:flex;flex-direction:column;gap:14px">
         ${s.groups.map(g => `<div class="card" style="padding:18px 20px;border-radius:20px">
           <div style="display:flex;align-items:center;justify-content:space-between">${chip(g, 18)}<span class="mut">${g.players.length}</span></div>
           <div style="margin-top:10px;font-size:18px;line-height:1.5">${g.players.map(p => esc(p.name)).join(' · ') || '<span class="mut">Nadie todavía</span>'}</div></div>`).join('')}

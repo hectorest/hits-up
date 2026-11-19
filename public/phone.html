@@ -46,6 +46,10 @@
   #main { display: flex; flex-direction: column; gap: 16px; }
   .wrap:has(#panel[hidden]) #main { flex: 1; }
   #panel[hidden] { display: none; }
+  .searchbar { position: sticky; top: 0; z-index: 5; background: var(--bg); padding: 8px 0; margin: -8px 0 0; }
+  body.searching .wrap { padding-bottom: 75vh; }
+  ul.songs li { padding: 6px 8px; }
+  .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
   #panel { display: flex; flex-direction: column; gap: 12px; }
 </style>
 </head>
@@ -59,11 +63,13 @@
       <button type="button" data-tab="search" role="tab">Buscar</button>
     </div>
     <div id="tab-search" style="display:flex;flex-direction:column;gap:10px">
-      <div class="field"><label for="q">Título o artista</label>
-        <div class="search"><span id="searchIcon"></span><input id="q" type="search" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Ej.: despacito"></div></div>
-      <div class="warn"><span id="muteIcon"></span><span>Si escuchas el fragmento, baja el volumen: los demás pueden oírlo.</span></div>
+      <div class="searchbar" id="searchbar">
+        <label for="q" class="sr-only">Título o artista</label>
+        <div class="search"><span id="searchIcon"></span><input id="q" type="search" autocomplete="off" autocapitalize="off" spellcheck="false" enterkeyhint="search" placeholder="Busca título o artista"></div>
+      </div>
       <ul class="songs" id="results"></ul>
       <div class="mut" id="resultsNote" style="font-size:13px"></div>
+      <div class="warn" style="font-size:12px;padding:8px 10px"><span id="muteIcon"></span><span>Si escuchas un fragmento, baja el volumen: los demás pueden oírlo.</span></div>
     </div>
     <div id="tab-list" style="display:flex;flex-direction:column;gap:10px">
       <ul class="songs" id="mylist"></ul>

@@ -125,6 +125,17 @@ window.HU = (() => {
     });
   }, 100);
 
+  // Baja el volumen progresivamente en los últimos segundos del fragmento
+  function fadeOut(audio, secs = 4) {
+    setInterval(() => {
+      const d = audio.duration;
+      if (!isFinite(d) || d <= 0) return;
+      const rem = d - audio.currentTime;
+      const v = rem < secs ? Math.max(0, rem / secs) : 1;
+      if (Math.abs(audio.volume - v) > 0.01) { try { audio.volume = v; } catch (e) {} }
+    }, 80);
+  }
+
   function toast(msg, isErr) {
     const el = document.createElement('div');
     el.className = 'toast' + (isErr ? ' err' : '');
@@ -133,5 +144,5 @@ window.HU = (() => {
     setTimeout(() => el.remove(), 2600);
   }
 
-  return { esc, sNow, connect, post, get, search, freshPreview, group, dot, chip, cover, vinyl, fmt, ring, ROUNDS, ICON, toast };
+  return { esc, sNow, connect, post, get, search, freshPreview, fadeOut, group, dot, chip, cover, vinyl, fmt, ring, ROUNDS, ICON, toast };
 })();

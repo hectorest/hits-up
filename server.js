@@ -5,6 +5,19 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const os = require('os');
+const QRCode = require('./vendor/qrcode/index.js');
+const QRLevel = require('./vendor/qrcode/QRErrorCorrectLevel.js');
+
+// QR en SVG (margen de 4 módulos)
+function qrSvg(text) {
+  const q = new QRCode(-1, QRLevel.M);
+  q.addData(text);
+  q.make();
+  const n = q.getModuleCount(), m = 4, size = n + m * 2;
+  let d = '';
+  for (let r = 0; r < n; r++) for (let c = 0; c < n; c++) if (q.isDark(r, c)) d += `M${c + m},${r + m}h1v1h-1z`;
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${size} ${size}" shape-rendering="crispEdges"><rect width="${size}" height="${size}" fill="#fff"/><path d="${d}" fill="#0E1016"/></svg>`;
+}
 
 const PORT = process.env.PORT || 3000;
 const MOCK = process.env.DEEZER_MOCK === '1';
@@ -608,6 +621,12 @@ const server = http.createServer(async (req, res) => {
     if (req.method === 'GET' && (p === '/tv' || p === '/tv/')) return serveFile(res, 'tv.html');
     if (req.method === 'GET' && p === '/health') return json(res, 200, { ok: true, rooms: rooms.size, mock: MOCK });
 
+    if (req.method === 'GET' && p === '/api/qr.svg') {
+      const text = String(url.searchParams.get('text') || '').slice(0, 300);
+      if (!text) return json(res, 400, { error: 'Falta el texto' });
+      res.writeHead(200, { 'Content-Type': 'image/svg+xml', 'Cache-Control': 'public, max-age=3600' });
+      return res.end(qrSvg(text));
+    }
     if (req.method === 'GET' && p === '/api/info') return json(res, 200, { lan: lanUrls() });
     if (req.method === 'GET' && p === '/api/room') return json(res, 200, { exists: rooms.has(String(url.searchParams.get('code') || '').toUpperCase()) });
     if (req.method === 'POST' && p === '/api/rooms') { const room = createRoom(); return json(res, 200, { code: room.code }); }

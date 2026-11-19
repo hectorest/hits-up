@@ -14,6 +14,8 @@
 
   /* ---------------- Audio ---------------- */
   const audio = new Audio();
+  HU.fadeOut(audio);
+  window.__huAudio = audio; // para las pruebas automáticas
   let playingKey = null, cardDrawId = null;
   const SILENT = 'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA=';
   let unlocked = false;
@@ -70,6 +72,7 @@
         <div class="field"><label for="jname">Tu nombre</label><input class="input" id="jname" maxlength="20" autocomplete="nickname" value="${esc(localStorage.getItem('hu_name') || '')}"></div>
         <button class="btn btn-acc btn-block" type="submit">Entrar</button>
       </form></div>`;
+    if (code && !err) setTimeout(() => { const n = $('jname'); if (n && !n.value) n.focus(); }, 50);
     $('joinForm').onsubmit = async e => {
       e.preventDefault();
       unlockAudio();
@@ -387,11 +390,11 @@
   let panelMode = null, tab = 'search', results = [], hiddenCount = 0, searchSeq = 0, searchTimer = null;
   const inList = id => S.me.list.some(x => x.id === id);
   function songRow(song, key, actions) {
-    return `<li>${cover(song, 48, 10)}<div class="s-meta"><div class="s-title">${esc(song.title)}</div><div class="s-art">${esc(song.artist)}${song.album ? ' · ' + esc(song.album) : ''}</div></div>
+    return `<li>${cover(song, 44, 8)}<div class="s-meta"><div class="s-title">${esc(song.title)}</div><div class="s-art">${esc(song.artist)}${song.album ? ' · ' + esc(song.album) : ''}</div></div>
       <button type="button" class="icon-btn" data-pact="play" data-key="${key}" data-id="${esc(song.id)}" aria-label="Escuchar fragmento de ${esc(song.title)}">${playingKey === key ? ICON.stop : ICON.play}</button>${actions}</li>`;
   }
   function setPanel(mode, title) {
-    if (!mode) { $panel.hidden = true; panelMode = null; return; }
+    if (!mode) { $panel.hidden = true; panelMode = null; document.body.classList.remove('searching'); return; }
     $panel.hidden = false;
     if (panelMode !== mode) { panelMode = mode; tab = S.me.list.length ? 'list' : 'search'; }
     $('panelTitle').textContent = title;
@@ -414,6 +417,13 @@
       : `<button type="button" class="sm-btn btn-sec" data-pact="remove" data-id="${esc(song.id)}">Quitar</button>`)).join('');
     $('listNote').textContent = S.me.list.length ? '' : 'Tu lista está vacía. Busca canciones y pulsa «+ Lista».';
   }
+  function searchToTop() {
+    document.body.classList.add('searching');
+    const bar = $('searchbar');
+    const y = bar.getBoundingClientRect().top + window.scrollY;
+    window.scrollTo(0, Math.max(0, y));
+  }
+  $('q').addEventListener('focus', () => { searchToTop(); setTimeout(searchToTop, 350); });
   $('q').addEventListener('input', () => {
     clearTimeout(searchTimer);
     const q = $('q').value.trim();
@@ -431,7 +441,7 @@
   });
   $panel.addEventListener('click', async e => {
     const t = e.target.closest('[data-tab]');
-    if (t) { tab = t.dataset.tab; renderPanel(); if (tab === 'search') $('q').focus(); return; }
+    if (t) { tab = t.dataset.tab; renderPanel(); if (tab === 'search') $('q').focus(); else document.body.classList.remove('searching'); return; }
     const b = e.target.closest('[data-pact]');
     if (!b || b.disabled) return;
     const id = b.dataset.id;

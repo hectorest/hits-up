@@ -3,7 +3,7 @@
 Juego musical por grupos: Hitster × Time's Up. Una TV muestra la partida y cada jugador juega con su móvil.
 
 - **TV:** `https://TU-DIRECCION/tv` (portátil conectado a la tele, Chromecast o el navegador de la Smart TV).
-- **Móviles:** `https://TU-DIRECCION` y el código de 4 letras que sale en la TV.
+- **Móviles:** escanean el QR de la TV, o entran en `https://TU-DIRECCION` y escriben el código de 4 letras.
 
 ## Jugar en casa (recomendado)
 
@@ -13,7 +13,7 @@ El ordenador hace de servidor y los móviles se conectan por la misma wifi. Es l
 2. Descomprime `hitsup.zip` y haz doble clic en **`Jugar.bat`**.
 3. Si Windows pregunta por el firewall, marca **Redes privadas** y pulsa **Permitir**.
 4. Se abre la TV en el navegador (`http://localhost:3000/tv`). Llévala a la tele por HDMI o enviando la pestaña al Chromecast.
-5. Los móviles, conectados a **la misma wifi**, entran en la dirección que muestra la TV (del tipo `192.168.1.35:3000`) y escriben el código.
+5. Los móviles, conectados a **la misma wifi**, escanean el QR de la TV (o entran en la dirección que muestra, del tipo `192.168.1.35:3000`, y escriben el código).
 
 Deja abierta la ventana negra mientras jugáis: si la cierras, se acaba la partida.
 
@@ -52,5 +52,4 @@ Para actualizar el juego más adelante, sube los archivos nuevos al repositorio:
 ## Limitaciones de esta versión
 
 - Sin modo playlist ni modo individual (previstos para la versión 2).
-- Sin código QR en la TV: se escribe la dirección y el código.
 - El audio usa los fragmentos de 30 s de la API pública de Deezer.
