@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0E1016">
+<title>Hit's Up</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=Space+Grotesk:wght@500;700&amp;display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/app.css">
+<style>
+  body { min-height: 100dvh; }
+  .wrap { max-width: 480px; margin: 0 auto; padding: 20px 18px 28px; display: flex; flex-direction: column; gap: 16px; min-height: 100dvh; }
+  .kicker { font-size: 13px; color: var(--mut); display: flex; align-items: center; gap: 8px; }
+  .title { font-family: var(--display); font-weight: 700; font-size: 28px; letter-spacing: -0.02em; margin-top: 4px; }
+  .field { display: flex; flex-direction: column; gap: 6px; }
+  .field label { font-size: 13px; color: var(--mut); }
+  .input { height: 52px; padding: 0 14px; border-radius: 14px; background: var(--s1); border: 1px solid #3A4052; color: var(--txt); font-size: 17px; outline: none; width: 100%; }
+  .input:focus { border-color: var(--acc); }
+  .tabs { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px; padding: 4px; border-radius: 14px; background: var(--s1); }
+  .tabs button { height: 44px; border: 0; border-radius: 10px; background: transparent; color: var(--mut); font-weight: 600; font-size: 15px; }
+  .tabs button.on { background: var(--s3); color: var(--txt); }
+  .search { display: flex; align-items: center; gap: 10px; height: 50px; padding: 0 14px; border-radius: 14px; background: var(--s1); border: 1px solid #3A4052; color: var(--mut); }
+  .search input { flex: 1; min-width: 0; height: 100%; border: 0; background: transparent; color: var(--txt); font-size: 17px; outline: none; }
+  .warn { display: flex; gap: 10px; padding: 10px 12px; border-radius: 12px; background: var(--warn-bg); color: var(--warn); font-size: 13px; line-height: 1.4; }
+  ul.songs { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+  ul.songs li { display: flex; align-items: center; gap: 12px; padding: 8px; border-radius: 16px; background: var(--s1); }
+  .s-meta { flex: 1; min-width: 0; }
+  .s-title { font-weight: 700; font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .s-art { font-size: 13px; color: var(--mut); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .icon-btn { width: 44px; height: 44px; flex: none; border-radius: 50%; border: 1px solid var(--line2); background: transparent; color: var(--txt); display: grid; place-items: center; }
+  .sm-btn { height: 40px; padding: 0 12px; border-radius: 12px; border: 0; font-weight: 700; font-size: 14px; flex: none; }
+  .buzz { width: 260px; height: 260px; border-radius: 50%; border: 0; display: grid; place-items: center; text-align: center; padding: 24px; margin: 0 auto; touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
+  .buzz:active:not(:disabled) { transform: scale(.97); }
+  .host { border: 1px dashed var(--line2); border-radius: 16px; padding: 12px 14px; display: flex; flex-direction: column; gap: 10px; }
+  .host .row { display: flex; gap: 8px; flex-wrap: wrap; }
+  .grow { flex: 1; display: flex; flex-direction: column; justify-content: center; gap: 16px; }
+  .center { text-align: center; align-items: center; }
+  .gbtn { display: flex; align-items: center; gap: 12px; padding: 14px 16px; border-radius: 16px; background: var(--s1); border: 2px solid transparent; text-align: left; width: 100%; }
+  .gbtn.on { border-color: var(--acc); background: var(--acc-soft); }
+  .rules { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; font-size: 14px; line-height: 1.5; }
+  .seg { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
+  .seg button { height: 44px; border-radius: 12px; border: 1px solid var(--line2); background: transparent; font-weight: 700; }
+  .seg button.on { background: var(--acc); color: var(--acc-ink); border-color: var(--acc); }
+  #main { display: flex; flex-direction: column; gap: 16px; }
+  .wrap:has(#panel[hidden]) #main { flex: 1; }
+  #panel[hidden] { display: none; }
+  #panel { display: flex; flex-direction: column; gap: 12px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div id="main"></div>
+  <section id="panel" hidden>
+    <div id="panelTitle" class="mut" style="font-size:14px"></div>
+    <div class="tabs" role="tablist">
+      <button type="button" data-tab="list" role="tab">Mi lista · <span id="listCount">0</span></button>
+      <button type="button" data-tab="search" role="tab">Buscar</button>
+    </div>
+    <div id="tab-search" style="display:flex;flex-direction:column;gap:10px">
+      <div class="field"><label for="q">Título o artista</label>
+        <div class="search"><span id="searchIcon"></span><input id="q" type="search" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Ej.: despacito"></div></div>
+      <div class="warn"><span id="muteIcon"></span><span>Si escuchas el fragmento, baja el volumen: los demás pueden oírlo.</span></div>
+      <ul class="songs" id="results"></ul>
+      <div class="mut" id="resultsNote" style="font-size:13px"></div>
+    </div>
+    <div id="tab-list" style="display:flex;flex-direction:column;gap:10px">
+      <ul class="songs" id="mylist"></ul>
+      <div class="mut" id="listNote" style="font-size:13px"></div>
+    </div>
+  </section>
+</div>
+<script src="/common.js"></script>
+<script src="/phone.js"></script>
+</body>
+</html>

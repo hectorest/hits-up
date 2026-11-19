@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Hit's Up · TV</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=Space+Grotesk:wght@500;700&amp;display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/app.css">
+<style>
+  html, body { height: 100%; overflow: hidden; }
+  #stage { position: fixed; left: 50%; top: 50%; width: 1280px; height: 720px; transform-origin: center; }
+  #tv { width: 1280px; height: 720px; padding: 32px 44px; display: flex; flex-direction: column; gap: 22px; }
+  header.top { display: flex; align-items: center; justify-content: space-between; gap: 24px; min-height: 44px; }
+  .logo { font-family: var(--display); font-weight: 700; font-size: 34px; letter-spacing: -0.02em; }
+  .logo b { color: var(--acc); font-weight: 700; }
+  main.body { flex: 1; min-height: 0; display: flex; gap: 22px; }
+  footer.score { display: grid; gap: 14px; }
+  .sc { display: flex; align-items: center; gap: 12px; padding: 11px 16px; border-radius: 16px; background: var(--s1); border: 1px solid var(--line); }
+  .sc .n { font-family: var(--display); font-weight: 700; font-size: 26px; }
+  .big { font-family: var(--display); font-weight: 700; letter-spacing: -0.02em; line-height: 1; }
+  .center { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 20px; text-align: center; }
+  .q-item { display: flex; align-items: center; gap: 14px; padding: 14px 16px; border-radius: 18px; background: var(--s2); }
+  .q-item.on { background: var(--acc-soft); border: 2px solid var(--acc); }
+  #unlock { position: fixed; inset: 0; background: rgba(14,16,22,.92); display: grid; place-items: center; z-index: 20; }
+  #unlock button { font-size: 28px; min-height: 84px; padding: 0 40px; border-radius: 24px; }
+  .conn { position: fixed; right: 16px; bottom: 12px; font-size: 13px; color: var(--mut); }
+</style>
+</head>
+<body>
+<div id="stage"><div id="tv"></div></div>
+<div id="unlock"><div style="text-align:center;display:flex;flex-direction:column;gap:18px;align-items:center">
+  <div class="logo" style="font-size:64px">Hit's <b>Up</b></div>
+  <button class="btn btn-acc" id="unlockBtn" type="button">Pulsa para activar el sonido</button>
+  <div class="mut">La TV reproduce la música de la ronda 1.</div>
+</div></div>
+<div class="conn" id="conn"></div>
+<script src="/common.js"></script>
+<script src="/tv.js"></script>
+</body>
+</html>

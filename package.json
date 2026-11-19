@@ -1,0 +1,13 @@
+{
+  "name": "hitsup",
+  "version": "0.1.0",
+  "description": "Hit's Up: juego musical por grupos (Hitster × Time's Up)",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "test": "node test/sim.js"
+  },
+  "engines": { "node": ">=18" },
+  "license": "UNLICENSED",
+  "private": true
+}
