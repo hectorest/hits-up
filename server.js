@@ -629,12 +629,67 @@ function serveFile(res, file) {
   });
 }
 
+/* ---------- Prueba técnica de TIDAL (credenciales en variables de entorno de Render) ---------- */
+const TIDAL_ID = process.env.TIDAL_CLIENT_ID || '', TIDAL_SECRET = process.env.TIDAL_CLIENT_SECRET || '';
+let tidalTok = null;
+async function tidalToken() {
+  if (!TIDAL_ID || !TIDAL_SECRET) throw new Error('Faltan TIDAL_CLIENT_ID y TIDAL_CLIENT_SECRET en el servidor');
+  if (tidalTok && tidalTok.until > Date.now() + 60000) return tidalTok;
+  const r = await fetch('https://auth.tidal.com/v1/oauth2/token', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded', Authorization: 'Basic ' + Buffer.from(TIDAL_ID + ':' + TIDAL_SECRET).toString('base64') },
+    body: 'grant_type=client_credentials'
+  });
+  const t = await r.text();
+  if (!r.ok) throw new Error(`Token TIDAL HTTP ${r.status}: ${t.slice(0, 200)}`);
+  const d = JSON.parse(t);
+  tidalTok = { token: d.access_token, until: Date.now() + (d.expires_in || 3600) * 1000, scope: d.scope || '' };
+  return tidalTok;
+}
+async function tidalSearch(q, country) {
+  const tk = await tidalToken();
+  const enc = encodeURIComponent(q), cc = encodeURIComponent(country || 'ES');
+  const urls = [ // la ruta cambió en 2026: se prueban las dos formas
+    `https://openapi.tidal.com/v2/searchResults/${enc}/relationships/tracks?countryCode=${cc}&include=tracks`,
+    `https://openapi.tidal.com/v2/searchResults?filter%5Bquery%5D=${enc}&countryCode=${cc}&include=tracks`,
+    `https://openapi.tidal.com/v2/searchResults/${enc}?countryCode=${cc}&include=tracks`
+  ];
+  const tries = [];
+  for (const u of urls) {
+    const t0 = Date.now();
+    const r = await fetch(u, { headers: { Authorization: 'Bearer ' + tk.token, Accept: 'application/vnd.api+json' } });
+    const text = await r.text();
+    tries.push({ url: u.replace(enc, '…'), status: r.status, ms: Date.now() - t0, body: r.ok ? undefined : text.slice(0, 300) });
+    if (!r.ok) continue;
+    const d = JSON.parse(text);
+    const inc = (d.included || []).filter(x => x.type === 'tracks');
+    const ids = Array.isArray(d.data) ? d.data.filter(x => x.type === 'tracks').map(x => x.id) : [];
+    const byId = new Map(inc.map(x => [x.id, x]));
+    const order = ids.length ? ids : inc.map(x => x.id);
+    const tracks = order.map(id => byId.get(id) || { id, attributes: {} }).slice(0, 15).map(x => ({
+      id: x.id, title: x.attributes.title, version: x.attributes.version || '', duration: x.attributes.duration,
+      popularity: x.attributes.popularity, isrc: x.attributes.isrc, explicit: x.attributes.explicit
+    }));
+    return { tracks, tries, rawSample: text.slice(0, 1500) };
+  }
+  return { tracks: [], tries };
+}
+
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, 'http://x');
   const p = url.pathname;
   try {
     if (req.method === 'GET' && (p === '/' || p === '/index.html')) return serveFile(res, 'phone.html');
     if (req.method === 'GET' && (p === '/tv' || p === '/tv/')) return serveFile(res, 'tv.html');
+    if (req.method === 'GET' && (p === '/tidal' || p === '/tidal/')) return serveFile(res, 'tidal-test.html');
+    if (req.method === 'GET' && p === '/api/tidal/token') {
+      try { const t = await tidalToken(); return json(res, 200, { clientId: TIDAL_ID, token: t.token, expires: t.until, scope: t.scope }); }
+      catch (e) { return json(res, 502, { error: String(e.message || e) }); }
+    }
+    if (req.method === 'GET' && p === '/api/tidal/search') {
+      try { return json(res, 200, await tidalSearch(String(url.searchParams.get('q') || '').slice(0, 200), url.searchParams.get('cc'))); }
+      catch (e) { return json(res, 502, { error: String(e.message || e) }); }
+    }
     if (req.method === 'GET' && p === '/health') return json(res, 200, { ok: true, rooms: rooms.size, mock: MOCK });
 
     if (req.method === 'GET' && p === '/api/qr.svg') {

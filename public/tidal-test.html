@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Hit's Up · Prueba TIDAL</title>
+<style>
+  body { font: 16px/1.4 system-ui, sans-serif; background: #0E1016; color: #EDEFF5; margin: 0; padding: 16px; max-width: 760px; }
+  h1 { font-size: 22px; margin: 0 0 4px; } h2 { font-size: 16px; margin: 22px 0 8px; color: #FF5A7A; }
+  .mut { color: #9AA0B4; font-size: 14px; }
+  input, button, select { font: inherit; border-radius: 10px; border: 1px solid #2A2F3E; background: #171A23; color: inherit; padding: 10px 12px; }
+  button { background: #FF5A7A; color: #1A0A10; border: 0; font-weight: 700; cursor: pointer; }
+  button.sec { background: #232838; color: #EDEFF5; }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  ul { list-style: none; padding: 0; margin: 8px 0; }
+  li { display: flex; gap: 8px; align-items: center; padding: 8px 10px; background: #171A23; border-radius: 10px; margin-bottom: 6px; }
+  li .t { flex: 1; min-width: 0; } li .t b { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  #log { white-space: pre-wrap; font: 12px/1.45 ui-monospace, monospace; background: #07080C; padding: 10px; border-radius: 10px; max-height: 340px; overflow: auto; }
+  .ok { color: #3ED8C3; } .bad { color: #FF8A5B; }
+  #res td { padding: 4px 10px 4px 0; } #res td:first-child { color: #9AA0B4; }
+</style>
+</head>
+<body>
+<h1>Prueba técnica de TIDAL</h1>
+<div class="mut">Busca canciones en TIDAL y reproduce su fragmento con el reproductor oficial. Ábrela en el móvil y en el Silk de la tele.</div>
+
+<h2>1 · Conexión</h2>
+<div id="conn" class="mut">Comprobando…</div>
+
+<h2>2 · Buscar</h2>
+<form id="f" class="row">
+  <input id="q" placeholder="Título o artista" value="Rosalía Despechá" style="flex:1;min-width:200px">
+  <button>Buscar</button>
+</form>
+<div class="row mut" style="margin-top:8px">
+  <button type="button" class="sec" id="batch">Probar 20 éxitos de golpe</button>
+  <span id="batchOut"></span>
+</div>
+<ul id="list"></ul>
+
+<h2>3 · Reproducción</h2>
+<div class="row">
+  <button type="button" class="sec" id="pause">Pausa</button>
+  <button type="button" class="sec" id="resume">Seguir</button>
+  <button type="button" class="sec" id="seek">Saltar a 10 s</button>
+</div>
+<table id="res" style="margin-top:10px"></table>
+
+<h2>Registro</h2>
+<div id="log"></div>
+
+<script type="module">
+const $ = id => document.getElementById(id);
+const t0 = performance.now();
+const log = (m, cls) => { const s = document.createElement('div'); if (cls) s.className = cls; s.textContent = `[${((performance.now() - t0) / 1000).toFixed(1)}s] ${m}`; $('log').prepend(s); };
+const R = {}; const setR = (k, v) => { R[k] = v; $('res').innerHTML = Object.entries(R).map(([a, b]) => `<tr><td>${a}</td><td>${b}</td></tr>`).join(''); };
+setR('Navegador', navigator.userAgent.replace(/^Mozilla\/5.0 /, '').slice(0, 110));
+setR('MediaSource', 'MediaSource' in window ? 'sí' : 'no');
+setR('HLS nativo', document.createElement('audio').canPlayType('application/vnd.apple.mpegurl') || 'no');
+
+let creds = null;
+async function getToken() {
+  if (creds && creds.expires > Date.now() + 60000) return creds;
+  const r = await fetch('/api/tidal/token'); const d = await r.json();
+  if (!r.ok) throw new Error(d.error);
+  creds = d; return d;
+}
+
+/* Proveedor de credenciales: el token lo pide el servidor; la clave secreta nunca llega al navegador */
+const credentialsProvider = {
+  bus() {},
+  async getCredentials() {
+    const d = await getToken();
+    return { clientId: d.clientId, requestedScopes: [], grantedScopes: (d.scope || '').split(' ').filter(Boolean), token: d.token, expires: d.expires };
+  }
+};
+
+let P = null;
+async function loadPlayer() {
+  const srcs = ['https://unpkg.com/@tidal-music/player/dist', 'https://unpkg.com/@tidal-music/player-web-components/dist'];
+  for (const src of srcs) {
+    try {
+      const m = await import(src);
+      log('Cargado ' + src.split('/@')[1] + ' · funciones: ' + Object.keys(m).sort().join(', '));
+      if (m.setCredentialsProvider) m.setCredentialsProvider(credentialsProvider);
+      if (m.setEventSender) m.setEventSender({ sendEvent: async () => {} });
+      if (m.events && m.events.addEventListener) {
+        ['playback-state-change', 'media-product-transition', 'ended', 'streaming-privileges-revoked', 'preload-request'].forEach(ev =>
+          m.events.addEventListener(ev, e => onEvent(ev, e.detail)));
+      }
+      if (typeof m.load === 'function') return m;
+      log('Ese paquete no tiene load(); pruebo el siguiente', 'bad');
+    } catch (e) { log('No se pudo cargar ' + src + ': ' + e.message, 'bad'); }
+  }
+  throw new Error('No se pudo cargar el reproductor de TIDAL');
+}
+
+let playStart = 0, maxPos = 0, posTimer = null;
+function onEvent(ev, detail) {
+  const d = detail ? JSON.stringify(detail).slice(0, 220) : '';
+  log(`evento ${ev} ${d}`);
+  if (ev === 'playback-state-change' && detail && detail.state === 'PLAYING' && playStart) {
+    setR('Tarda en sonar', ((performance.now() - playStart) / 1000).toFixed(2) + ' s'); playStart = 0;
+  }
+  if (ev === 'media-product-transition' && detail) {
+    const pc = detail.playbackContext || {};
+    if (pc.actualDuration) setR('Duración del audio', pc.actualDuration + ' s');
+    if (pc.actualAssetPresentation) setR('Tipo', pc.actualAssetPresentation + (pc.actualAudioQuality ? ' · ' + pc.actualAudioQuality : ''));
+    if (pc.codec) setR('Códec', pc.codec);
+  }
+}
+
+async function playTrack(id, title) {
+  try {
+    P = P || await loadPlayer();
+    maxPos = 0; playStart = performance.now();
+    setR('Canción', title);
+    await P.load({ productId: String(id), productType: 'track', sourceId: 'hitsup-test', sourceType: 'SEARCH' }, 0);
+    await P.play();
+    log('play() ok: ' + title, 'ok');
+    clearInterval(posTimer);
+    posTimer = setInterval(() => {
+      const pos = P.getAssetPosition ? P.getAssetPosition() : NaN;
+      if (pos > maxPos) { maxPos = pos; setR('Posición máxima', pos.toFixed(1) + ' s'); }
+      if (P.getPlaybackState) setR('Estado', P.getPlaybackState());
+    }, 500);
+  } catch (e) { log('Error al reproducir: ' + (e && e.message || e), 'bad'); }
+}
+$('pause').onclick = () => P && P.pause().then(() => log('pausa ok'), e => log('pausa: ' + e.message, 'bad'));
+$('resume').onclick = () => P && P.play().then(() => log('seguir ok'), e => log('seguir: ' + e.message, 'bad'));
+$('seek').onclick = () => P && Promise.resolve(P.seek(10)).then(() => log('salto a 10 s ok'), e => log('salto: ' + e.message, 'bad'));
+
+const fmtDur = iso => { const m = /PT(?:(\d+)M)?(?:(\d+)S)?/.exec(iso || ''); return m ? `${m[1] || 0}:${String(m[2] || 0).padStart(2, '0')}` : ''; };
+async function search(q) {
+  const ms = performance.now();
+  const r = await fetch('/api/tidal/search?q=' + encodeURIComponent(q)); const d = await r.json();
+  if (!r.ok) throw new Error(d.error);
+  (d.tries || []).forEach(t => log(`búsqueda ${t.status} en ${t.ms} ms · ${t.url}${t.body ? ' · ' + t.body : ''}`, t.status === 200 ? 'ok' : 'bad'));
+  if (!d.tracks.length && d.rawSample) log('Respuesta sin canciones: ' + d.rawSample);
+  d.ms = Math.round(performance.now() - ms);
+  return d;
+}
+$('f').onsubmit = async e => {
+  e.preventDefault();
+  $('list').innerHTML = '<li>Buscando…</li>';
+  try {
+    const d = await search($('q').value.trim());
+    if (d.tracks.length && !d.tracks[0].title) log('Las canciones vienen sin título: ' + (d.rawSample || '').slice(0, 600), 'bad');
+    $('list').innerHTML = d.tracks.map(t => `<li><div class="t"><b>${(t.title || '(sin título)') + (t.version ? ' (' + t.version + ')' : '')}</b><span class="mut">id ${t.id} · ${fmtDur(t.duration)} · popularidad ${t.popularity ?? '?'}</span></div><button data-id="${t.id}" data-t="${(t.title || '').replace(/"/g, '')}">▶</button></li>`).join('') || '<li>Sin resultados</li>';
+    log(`${d.tracks.length} canciones en ${d.ms} ms`);
+  } catch (err) { $('list').innerHTML = ''; log('Búsqueda: ' + err.message, 'bad'); }
+};
+$('list').onclick = e => { const b = e.target.closest('button[data-id]'); if (b) playTrack(b.dataset.id, b.dataset.t); };
+
+const HITS = ['Bohemian Rhapsody Queen', 'Despacito Luis Fonsi', 'Macarena Los del Rio', 'La Bamba Ritchie Valens', 'Thriller Michael Jackson',
+  'Bailando Enrique Iglesias', 'Mi Gente J Balvin', 'Shape of You Ed Sheeran', 'Rolling in the Deep Adele', 'Flowers Miley Cyrus',
+  'Lose Yourself Eminem', 'Wannabe Spice Girls', 'Corazón Partío Alejandro Sanz', 'Hips Don\'t Lie Shakira', 'Smells Like Teen Spirit Nirvana',
+  'Billie Jean Michael Jackson', 'Uptown Funk Bruno Mars', 'Malamente Rosalía', 'Dancing Queen ABBA', 'Blinding Lights The Weeknd'];
+$('batch').onclick = async () => {
+  let ok = 0, fail = 0, total = 0;
+  for (const q of HITS) {
+    try { const d = await search(q); total += d.ms; if (d.tracks.length) ok++; else fail++; }
+    catch (e) { fail++; log(q + ': ' + e.message, 'bad'); }
+    $('batchOut').textContent = `${ok} con resultados · ${fail} sin · media ${Math.round(total / (ok + fail))} ms`;
+  }
+  setR('Búsquedas', $('batchOut').textContent);
+};
+
+getToken().then(d => { $('conn').innerHTML = `<span class="ok">Token OK</span> · permisos: ${d.scope || '(ninguno)'}`; log('Token OK'); })
+  .catch(e => { $('conn').innerHTML = `<span class="bad">${e.message}</span>`; log(e.message, 'bad'); });
+</script>
+</body>
+</html>
