@@ -144,30 +144,40 @@ async function freshPreview(id) {
 }
 
 /* ------------------------------------------------------------------ */
-/* Modo Spotify: enlace a la canción en la app (vía Odesli/song.link)  */
+/* Modo Spotify: enlace a la canción en la app                         */
+/* Odesli (song.link) cerró su API pública en julio de 2026. Con clave  */
+/* de SongPort (SONGPORT_API_KEY) se obtiene el enlace exacto; sin ella */
+/* se abre la búsqueda de Spotify con el título limpio.                 */
 /* ------------------------------------------------------------------ */
-const ODESLI_KEY = process.env.ODESLI_API_KEY || '';
+const SONGPORT_KEY = process.env.SONGPORT_API_KEY || '';
 const spCache = new Map(); // id de Deezer → { url, found }
 let spLastError = null;
 const SP_TRACK = /^https:\/\/open\.spotify\.com\/track\/[A-Za-z0-9]{22}$/;
-const spSearchUrl = song => 'https://open.spotify.com/search/' + encodeURIComponent(`${song.title} ${song.artist || ''}`.trim());
+const cleanTitle = t => String(t || '').replace(/\s*[([].*?[)\]]/g, '').replace(/\s+-\s+.*(remaster|version|versión|live|edit|mix).*$/i, '').trim();
+const spSearchUrl = song => 'https://open.spotify.com/search/' + encodeURIComponent(`${cleanTitle(song.title)} ${String(song.artist || '').split(/,| feat\.| ft\.| & /i)[0]}`.trim());
 async function spotifyLink(song) {
   const id = String(song.id);
   if (spCache.has(id)) return spCache.get(id);
   let out = { url: spSearchUrl(song), found: false };
   if (MOCK) { if (process.env.SP_MOCK_FAIL !== '1') out = { url: 'https://open.spotify.com/track/mock' + id, found: true }; }
+  else if (!SONGPORT_KEY) spLastError = { at: new Date().toISOString(), id, error: 'Sin SONGPORT_API_KEY: se usa la búsqueda de Spotify' };
   else {
     try {
-      const u = 'https://api.song.link/v1-alpha.1/links?userCountry=ES&url=' + encodeURIComponent('https://www.deezer.com/track/' + id) + (ODESLI_KEY ? '&key=' + encodeURIComponent(ODESLI_KEY) : '');
-      const ctl = new AbortController(); const to = setTimeout(() => ctl.abort(), 6000);
-      const r = await fetch(u, { signal: ctl.signal }); clearTimeout(to);
+      const ctl = new AbortController(); const to = setTimeout(() => ctl.abort(), 8000);
+      const r = await fetch('https://api.songport.link/v1/convert', {
+        method: 'POST', signal: ctl.signal,
+        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + SONGPORT_KEY },
+        body: JSON.stringify({ url: 'https://www.deezer.com/track/' + id, platforms: ['spotify'] })
+      });
+      clearTimeout(to);
+      const text = await r.text();
       if (r.ok) {
-        const d = await r.json();
-        const sp = d.linksByPlatform && d.linksByPlatform.spotify;
-        if (sp && sp.url) out = { url: sp.url.split('?')[0], found: true };
-        else spLastError = { at: new Date().toISOString(), id, error: 'Odesli no tiene esta canción en Spotify' };
-      } else { spLastError = { at: new Date().toISOString(), id, status: r.status, body: (await r.text()).slice(0, 200) }; console.warn('odesli', r.status); }
-    } catch (e) { spLastError = { at: new Date().toISOString(), id, error: e.message }; console.warn('odesli', e.message); }
+        const sp = (JSON.parse(text).platforms || {}).spotify;
+        const u = sp && sp.url && String(sp.url).split('?')[0];
+        if (u && !sp.isSearchFallback && SP_TRACK.test(u)) out = { url: u, found: true };
+        else spLastError = { at: new Date().toISOString(), id, error: 'SongPort no tiene esta canción en Spotify' };
+      } else spLastError = { at: new Date().toISOString(), id, status: r.status, body: text.slice(0, 200) };
+    } catch (e) { spLastError = { at: new Date().toISOString(), id, error: e.message }; }
   }
   if (out.found) spCache.set(id, out); // los fallos no se guardan: se reintenta la próxima vez
   return out;

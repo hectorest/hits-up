@@ -189,7 +189,7 @@
           <div class="s-meta"><div class="display" style="font-weight:700;font-size:22px">${esc(r.song.title)}</div><div class="mut" style="font-size:14px">${esc(r.song.artist)}</div></div></div>
         <div class="grow center" style="gap:14px">
           <a class="btn btn-acc btn-block" style="min-height:72px;font-size:20px;text-decoration:none" href="${esc(sp.url || '')}" target="_blank" rel="noopener" data-act="cueStart">${ICON.play} Abrir en Spotify</a>
-          <div class="mut" style="font-size:14px;line-height:1.5;max-width:300px">${sp.found ? 'Se abrirá la canción en Spotify. Dale a play si no empieza sola y vuelve aquí: serás el juez.' : spPending === r.song.id ? 'Buscando el enlace exacto…' : 'No encontramos el enlace exacto: se abrirá la búsqueda en Spotify. Toca la canción y vuelve aquí: serás el juez.'}</div>
+          <div class="mut" style="font-size:14px;line-height:1.5;max-width:300px">${sp.found ? 'Se abrirá la canción en Spotify. Dale a play si no empieza sola y vuelve aquí: serás el juez.' : 'No encontramos el enlace exacto: se abrirá la búsqueda en Spotify. Toca la canción y vuelve aquí: serás el juez.'}</div>
           <button type="button" class="btn btn-sec" data-act="cueStart">Ya está sonando</button>
           <div class="mut" style="font-size:12px">Si no la pones en <b data-until="${r.cueDeadline}" data-fmt="sec"></b> s, el tiempo empieza igualmente.</div>
         </div>${hb}`;
@@ -337,7 +337,7 @@
           ${cover(c, 132, 20)}<div class="display" style="font-weight:700;font-size:34px;line-height:1.05">${esc(c.title)}</div><div class="mut" style="font-size:17px">${esc(c.artist)}</div>
           ${s.music === 'spotify' && c.spotify
             ? `<a class="btn btn-acc" style="min-height:48px;border-radius:999px;font:600 16px Inter;text-decoration:none" href="${esc(c.spotify.url)}" target="_blank" rel="noopener">${ICON.play} Abrir en Spotify</a>
-               <div class="mut" style="font-size:13px">${c.spotify.found ? 'Escúchala con auriculares y vuelve para marcar.' : spPending === c.id ? 'Buscando el enlace exacto…' : 'Se abrirá la búsqueda: toca la canción y vuelve.'}</div>`
+               <div class="mut" style="font-size:13px">${c.spotify.found ? 'Escúchala con auriculares y vuelve para marcar.' : 'Se abrirá la búsqueda: toca la canción y vuelve.'}</div>`
             : `<button type="button" class="btn btn-sec" style="min-height:44px;border-radius:999px;font:600 15px Inter" data-act="replay">${ICON.repeat} Repetir fragmento</button>
           <div class="mut" style="font-size:13px;display:inline-flex;gap:6px;align-items:center">${ICON.headphones} Suena en tus auriculares</div>`}</section>
         ${rulesBox(s.round)}
@@ -416,23 +416,6 @@
     if (focusName) { focusName = false; const el = $('gname'); if (el) { el.focus(); el.select(); } }
     setPanel(mode, title);
     syncCardAudio(s);
-    fixSpotifyLink(s);
-  }
-  // Modo Spotify: si el servidor no encontró el enlace exacto, lo busca el móvil
-  const spTried = new Set();
-  let spPending = null;
-  function fixSpotifyLink(s) {
-    if (s.music !== 'spotify') return;
-    let song = null;
-    if (s.phase === 'r1' && s.r1 && s.r1.step === 'cue' && s.me.id === s.r1.proposerId && s.r1.song) song = { id: s.r1.song.id, sp: s.r1.spotify };
-    else if (s.phase === 'r24' && s.r24 && s.r24.card && s.me.id === s.r24.clueGiverId) song = { id: s.r24.card.id, sp: s.r24.card.spotify };
-    if (!song || (song.sp && song.sp.found) || spTried.has(song.id)) return;
-    spTried.add(song.id);
-    spPending = song.id; lastHtml = ''; render(S);
-    HU.spotifyFor(song.id).then(async u => {
-      if (u) await post('/api/action', { room: code, pid, type: 'spLink', songId: song.id, url: u });
-      spPending = null; lastHtml = ''; if (S) render(S);
-    });
   }
   function syncCardAudio(s) {
     const c = s.phase === 'r24' && s.r24 && s.r24.step === 'playing' && s.me.id === s.r24.clueGiverId && s.r24.card;
