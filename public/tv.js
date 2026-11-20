@@ -48,12 +48,20 @@
 
   /* ---------------- Audio de la ronda 1 ---------------- */
   function syncAudio(s) {
-    const a = s.phase === 'r1' && s.r1 && s.r1.audio;
-    if (!a || !a.url) { if (!audio.paused) audio.pause(); audioKey = null; return; }
+    const a = (s.phase === 'r1' && s.r1 && s.r1.audio) || (s.phase === 'r24' && s.r24 && s.r24.audio);
+    const pre = s.phase === 'r24' && s.r24 && s.r24.preload;
+    if (!a || !a.url) {
+      if (!audio.paused) audio.pause();
+      audio._fadeEnd = 0;
+      if (pre && pre.url) { if (audioKey !== pre.key) { audioKey = pre.key; songId = null; audio.src = pre.url; try { audio.load(); } catch (e) {} } }
+      else audioKey = null;
+      return;
+    }
+    songId = a.songId;
+    audio._fadeEnd = a.until ? Date.now() + (a.until - HU.sNow()) : 0;
     const offset = (a.offsetMs + (Date.now() - s._recv)) / 1000;
-    if (audioKey !== a.key) {
+    if (audioKey !== a.key || (audio.src !== a.url && !audio.src.endsWith(a.url))) {
       audioKey = a.key;
-      songId = a.songId;
       audio.src = a.url;
       audio.currentTime = 0;
     }
@@ -230,6 +238,17 @@
           <div class="big" style="font-size:40px">${esc(f.song.title)}</div><div class="mut" style="font-size:22px">${esc(f.song.artist)}</div>
           <div class="mut" style="font-size:15px">${f.target === 'hit' ? 'Carta recién acertada' : 'Carta en juego'}</div></div>
       </section>`);
+    }
+    if (r.step === 'celebrate' && r.celebrate) {
+      const cb = r.celebrate;
+      return page(s, `<section class="card fade-in" style="flex:1;padding:40px;display:flex;align-items:center;gap:44px">
+        ${cover(cb.song, 300, 24)}
+        <div style="display:flex;flex-direction:column;gap:16px;min-width:0">
+          <div style="display:flex;align-items:center;gap:14px;font-size:24px">${chip(g, 22)}<b>+${cb.pts}</b><span class="mut">· ¡acertada!</span></div>
+          <div class="big" style="font-size:72px">${esc(cb.song.title)}</div>
+          <div style="font-size:32px" class="mut">${esc(cb.song.artist)}</div>
+          <div style="display:flex;align-items:center;gap:16px">${eq(true)}<span class="mut" style="font-size:18px;white-space:nowrap">Reloj en pausa · sigue en <b data-until="${cb.until}" data-fmt="sec"></b> s</span></div>
+        </div></section>`);
     }
     const fr = r.faltaResult;
     const frTxt = fr ? `<div class="warnpill" style="font-size:18px">Falta resuelta: ${fr.decision === 'mala' ? 'era falta, la carta no cuenta' : fr.decision === 'buena' ? 'no era falta' : 'sin acuerdo, carta anulada'}</div>` : '';

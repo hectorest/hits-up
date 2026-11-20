@@ -14,6 +14,7 @@
 
   /* ---------------- Audio ---------------- */
   const audio = new Audio();
+  window.__phoneAudio = audio; // para las pruebas automáticas
   HU.fadeOut(audio);
   window.__huAudio = audio; // para las pruebas automáticas
   let playingKey = null, cardDrawId = null;
@@ -293,6 +294,15 @@
     if (r.step === 'turnEnd') {
       const sm = r.summary;
       return `<div class="grow center">${chip(group(s, sm.groupId), 18)}<div class="title" style="font-size:40px">${sm.hits} carta${sm.hits === 1 ? '' : 's'}</div><div class="mut">+${sm.pts} puntos · quedan ${r.deckLeft} en el mazo</div></div>${hb}`;
+    }
+    if (r.step === 'celebrate' && r.celebrate) {
+      const cb = r.celebrate;
+      const body = `<div class="grow center fade-in">${chip(g, 18)}<div class="title" style="font-size:44px;color:var(--ok)">¡Acertada!</div>
+        ${cover(cb.song, 140, 18)}<div class="display" style="font-weight:700;font-size:28px">${esc(cb.song.title)}</div><div class="mut">${esc(cb.song.artist)}</div>
+        <div class="pill">Suena en la tele · reloj en pausa</div></div>`;
+      if (isClue) return body + `<button type="button" class="btn btn-acc btn-block" style="min-height:60px;font-size:18px" data-act="resume">Siguiente carta <span style="font-weight:500;opacity:.7">(<b data-until="${cb.until}" data-fmt="sec"></b> s)</span></button>${hb}`;
+      if (!mine && mg) return body + `<button type="button" class="btn btn-sec btn-block" data-act="falta" ${mg.fichas > 0 ? '' : 'disabled'}>${ICON.flag} ¡Falta en esta carta!</button>${hb}`;
+      return body + hb;
     }
     if (r.step === 'falta') {
       const f = r.falta, cg = group(s, f.claimGroupId), ag = group(s, f.accusedGroupId);
@@ -618,6 +628,12 @@
       case 'replay': try { audio.currentTime = 0; audio.play().catch(() => {}); } catch (err) {} return;
       case 'endRound': if (confirm('¿Terminar la ronda ahora?')) return act('endRound'); return;
       case 'skipTurn': if (confirm('¿Pasar este turno?')) return act('skipTurn'); return;
+      case 'hit': { // se envía el punto exacto del fragmento para que la tele siga desde ahí
+        const pos = playingKey && playingKey.startsWith('card') && !audio.paused ? audio.currentTime : (audio.ended ? 30 : audio.currentTime || 0);
+        const r = await act('hit', { pos, at: HU.sNow() });
+        if (!r.error && S && S.music !== 'spotify') stopAudio();
+        return;
+      }
       case 'falta': if (navigator.vibrate) navigator.vibrate([30, 40, 30]); return act('falta');
       default: return act(a);
     }

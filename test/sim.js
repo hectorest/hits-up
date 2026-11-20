@@ -3,7 +3,7 @@
 process.env.DEEZER_MOCK = '1';
 const { server, T } = require('../server.js');
 // Acelerar tiempos para la prueba
-Object.assign(T, { PREVIEW: 3000, ANSWER: 800, JUDGE_MAX: 1500, REVEAL_HIT: 300, KEEP_DECIDE: 700, REVEAL_SHORT: 200, BONUS: 1500, REVEAL: 300, TURN: { 2: 2500, 3: 8000, 4: 2500 }, TURN_END: 300, FALTA: 1500, DECK_TOTAL: 6, CARRY_MIN: 300, HIT_WINDOW: 400 });
+Object.assign(T, { CELEBRATE: 150, PREVIEW: 3000, ANSWER: 800, JUDGE_MAX: 1500, REVEAL_HIT: 300, KEEP_DECIDE: 700, REVEAL_SHORT: 200, BONUS: 1500, REVEAL: 300, TURN: { 2: 2500, 3: 8000, 4: 2500 }, TURN_END: 300, FALTA: 1500, DECK_TOTAL: 6, CARRY_MIN: 300, HIT_WINDOW: 400 });
 
 const PORT = 3999;
 const base = `http://localhost:${PORT}`;
@@ -125,6 +125,7 @@ function listen(url, onState) {
   console.log('   Puntos tras R1:', tv.groups.map(g => g.name + ' ' + g.score).join(', '));
 
   // --- Rondas 2-4 ---
+  let handoffTested = false;
   for (let round = 2; round <= 4; round++) {
     await act('Ana', 'next'); await sleep(60);
     check(tv.phase === 'roundIntro' && tv.round === round, `Intro ronda ${round}`);
@@ -139,6 +140,21 @@ function listen(url, onState) {
         const rival = names.find(n => states[n].me.groupId && states[n].me.groupId !== q.groupId);
         if (mate) check(!states[mate].r24.card, `R${round}: el compañero no ve la carta`);
         check(states[clue].r24.card && states[rival].r24.card && !tv.r24.card, `R${round}: carta visible para quien da pistas y rivales, no en la TV`);
+        if (round === 2 && !handoffTested) {
+          handoffTested = true;
+          T.CELEBRATE = 5000; const prevLen = T.PREVIEW; T.PREVIEW = 30000;
+          const left = q.deadline - Date.now();
+          await act(clue, 'hit', { pos: 7.5, at: Date.now() - 100 }); await sleep(60);
+          check(tv.r24.step === 'celebrate' && tv.r24.audio && tv.r24.audio.playing, 'Al acertar, la canción pasa a sonar en la tele');
+          check(tv.r24.audio && tv.r24.audio.offsetMs >= 7500 && tv.r24.audio.offsetMs < 8500, 'La tele sigue desde el punto exacto de los auriculares');
+          check(!states[clue].r24.audio && !states[rival].r24.audio, 'Los móviles no reciben ese audio');
+          check((await act(rival, 'hit')).error, 'Durante la celebración no se puede marcar otra');
+          await sleep(300);
+          await act(clue, 'resume'); await sleep(60);
+          check(tv.r24.step === 'playing' && Math.abs((tv.r24.deadline - Date.now()) - left) < 700, 'El reloj se para durante la celebración y sigue después');
+          T.CELEBRATE = 150; T.PREVIEW = prevLen;
+          continue;
+        }
         if (!faltaTested && round === 3) {
           faltaTested = true;
           await act(clue, 'hit'); await sleep(40);

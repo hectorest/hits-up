@@ -134,7 +134,8 @@ window.HU = (() => {
       const d = audio.duration;
       if (!isFinite(d) || d <= 0) return;
       const rem = d - audio.currentTime;
-      const v = rem < secs ? Math.max(0, rem / secs) : 1;
+      let v = rem < secs ? Math.max(0, rem / secs) : 1;
+      if (audio._fadeEnd) v = Math.min(v, Math.max(0, (audio._fadeEnd - Date.now()) / 1500)); // fundido antes de un corte previsto
       if (Math.abs(audio.volume - v) > 0.01) { try { audio.volume = v; } catch (e) {} }
     }, 80);
   }

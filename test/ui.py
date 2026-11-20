@@ -150,6 +150,23 @@ try:
                             pg.click('[data-act=faltaChoice][data-arg=admit]')
                             falta_done = True
                             continue
+                        if rnd == 2 and 'handoff' not in shots_done:
+                            shots_done.add('handoff')
+                            try:
+                                pg.wait_for_function('window.__phoneAudio && !window.__phoneAudio.paused && window.__phoneAudio.currentTime > 1.5', timeout=5000)
+                                ph_pos = pg.evaluate('window.__phoneAudio.currentTime')
+                                t0 = time.time()
+                                pg.click('[data-act=hit]')
+                                tv.wait_for_function('!window.__huAudio.paused && window.__huAudio.currentTime > 0', timeout=4000)
+                                tv_pos = tv.evaluate('window.__huAudio.currentTime'); dt = time.time() - t0
+                                ok = abs(tv_pos - (ph_pos + dt)) < 0.8
+                                print('  %s Relevo auriculares → tele: móvil en %.2f s, tele en %.2f s (%.2f s después)' % ('✓' if ok else '✗', ph_pos, tv_pos, dt))
+                                time.sleep(0.3)
+                                print('  %s El móvil deja de sonar al pasar a la tele' % ('✓' if pg.evaluate('window.__phoneAudio.paused') else '✗'))
+                                shot(tv, '17b_tv_acertada'); shot(pg, '17c_movil_acertada')
+                            except Exception as e:
+                                print('  ✗ Relevo auriculares → tele:', str(e)[:200])
+                            break
                         pg.click('[data-act=hit]')
                         break
         tv.wait_for_selector('text=¡Gana', timeout=30000)

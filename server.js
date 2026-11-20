@@ -39,9 +39,10 @@ const T = {
   DECK_TOTAL: 30,
   FICHAS: 2,
   CARRY_MIN: 3000,
+  CELEBRATE: 7000,     // tras un acierto (rondas 2-4) la canción sigue en la tele desde donde iba
   CUE_MAX: 45000       // modo Spotify: si quien propone no la pone en este tiempo, se da por empezada
 };
-if (process.env.HU_FAST === '1') Object.assign(T, { PREVIEW: 9000, BONUS: 4000, REVEAL: 2500, REVEAL_HIT: 3000, KEEP_DECIDE: 6000, TURN: { 2: 15000, 3: 15000, 4: 15000 }, TURN_END: 2000, DECK_TOTAL: 6 });
+if (process.env.HU_FAST === '1') Object.assign(T, { PREVIEW: 9000, CELEBRATE: 3000, BONUS: 4000, REVEAL: 2500, REVEAL_HIT: 3000, KEEP_DECIDE: 6000, TURN: { 2: 15000, 3: 15000, 4: 15000 }, TURN_END: 2000, DECK_TOTAL: 6 });
 const ROUND_PTS = { 2: 2, 3: 3, 4: 4 };
 const PRESETS = [
   { name: 'Tigres', color: '#FFB547' },
@@ -385,14 +386,33 @@ function drawCard(room) {
   }
   freshPreview(c.id).then(u => { if (u && room.r24 && room.r24.current && room.r24.current.drawId === c.drawId) { c.previewUrl = u; broadcast(room); } });
 }
-function r24Hit(room, p) {
+function r24Hit(room, p, a) {
   const r = room.r24;
   if (!r || r.step !== 'playing' || r.clueGiverId !== p.id || !r.current) fail('Ahora no');
   const pts = ROUND_PTS[room.round];
   groupById(room, r.groupId).score += pts;
   r.hits++;
-  r.lastHit = { song: r.current, at: now(), groupId: r.groupId, pts };
+  const c = r.current;
+  r.lastHit = { song: c, at: now(), groupId: r.groupId, pts };
   r.current = null;
+  if (spotifyMode(room) || !c.previewUrl) return drawCard(room);
+  // La canción pasa de los auriculares a la tele, desde el punto exacto en que iba
+  const pos = Math.max(0, Math.min(T.PREVIEW, (Number(a && a.pos) || 0) * 1000));
+  const lag = Math.max(0, Math.min(3000, now() - (Number(a && a.at) || now())));
+  let offsetMs = pos + lag;
+  if (offsetMs > T.PREVIEW - 2500) offsetMs = 0; // el fragmento ya había acabado: desde el principio
+  r.remainingMs = Math.max(0, r.deadline - now());
+  r.celebrate = { song: c, offsetMs, startAt: now(), until: now() + T.CELEBRATE, key: c.drawId };
+  r.step = 'celebrate';
+}
+// Fin de la celebración: se para el reloj durante ella y se reanuda con la siguiente carta
+function r24Resume(room, p) {
+  const r = room.r24;
+  if (!r || r.step !== 'celebrate') return;
+  if (p && p.id !== r.clueGiverId) fail('Sigue quien da las pistas');
+  r.celebrate = null;
+  r.step = 'playing';
+  r.deadline = now() + r.remainingMs;
   drawCard(room);
 }
 function r24Pass(room, p) {
@@ -419,15 +439,16 @@ function endR24Round(room) {
 }
 function r24Falta(room, p) {
   const r = room.r24;
-  if (!r || r.step !== 'playing') fail('Ahora no se puede reclamar');
+  if (!r || (r.step !== 'playing' && r.step !== 'celebrate')) fail('Ahora no se puede reclamar');
   if (!p.groupId || p.groupId === r.groupId) fail('Solo pueden reclamar los rivales');
   const g = groupById(room, p.groupId);
   if (g.fichas <= 0) fail('Sin fichas de falta en esta ronda');
-  const recentHit = r.lastHit && now() - r.lastHit.at < T.HIT_WINDOW;
+  const recentHit = r.step === 'celebrate' || (r.lastHit && now() - r.lastHit.at < T.HIT_WINDOW);
   const target = recentHit ? 'hit' : (r.current ? 'current' : null);
   if (!target) fail('No hay carta que reclamar');
   g.fichas--;
-  r.remainingMs = Math.max(0, r.deadline - now());
+  if (r.step !== 'celebrate') r.remainingMs = Math.max(0, r.deadline - now());
+  r.celebrate = null;
   r.step = 'falta';
   r.falta = {
     claimGroupId: g.id, claimBy: p.id, accusedGroupId: r.groupId, target,
@@ -487,6 +508,7 @@ function tickR24(room) {
   const r = room.r24;
   if (!r) return false;
   if (r.step === 'playing' && now() >= r.deadline) { endTurn(room); return true; }
+  if (r.step === 'celebrate' && now() >= r.celebrate.until) { r24Resume(room, null); return true; }
   if (r.step === 'falta' && now() >= r.falta.deadline) { checkFalta(room, true); return true; }
   if (r.step === 'turnEnd' && now() >= r.turnEndUntil) { setupTurn(room, room.nextGroup % room.groups.length, null); return true; }
   if (r.faltaResult && now() > r.faltaResult.until) { r.faltaResult = null; return true; }
@@ -599,7 +621,8 @@ async function handleAction(room, p, a) {
     case 'keep': r1Keep(room, p, !!a.keep); break;
     case 'judge': r1Judge(room, p, a.verdict === 'title' ? 'title' : a.verdict === 'artist' ? 'artist' : 'fail'); break;
     case 'begin': r24Begin(room, p); break;
-    case 'hit': r24Hit(room, p); break;
+    case 'hit': r24Hit(room, p, a); break;
+    case 'resume': r24Resume(room, p); break;
     case 'pass': r24Pass(room, p); break;
     case 'falta': r24Falta(room, p); break;
     case 'faltaChoice': r24FaltaChoice(room, p, a.choice); break;
@@ -646,12 +669,18 @@ function view(room, p) {
       step: q.step, groupId: q.groupId, clueGiverId: q.clueGiverId, clueGiverName: cg ? cg.name : '?',
       deadline: q.deadline, remainingMs: q.step === 'falta' ? q.remainingMs : null, turnMs: q.turnTotal || q.carryMs || turnLen(room),
       hits: q.hits, deckLeft: q.deck.length + (q.current ? 1 : 0), summary: q.summary, faltaResult: q.faltaResult,
+      celebrate: q.step === 'celebrate' && q.celebrate ? { song: pub(q.celebrate.song), until: q.celebrate.until, groupId: q.groupId, pts: ROUND_PTS[room.round] } : null,
       falta: q.falta ? {
         claimGroupId: q.falta.claimGroupId, accusedGroupId: q.falta.accusedGroupId, target: q.falta.target,
         song: pub(q.falta.song), accused: q.falta.accused, claim: q.falta.claim, votes: q.falta.votes, deadline: q.falta.deadline,
         neutralIds: neutralGroups(room, q.falta).map(g => g.id)
       } : null
     };
+    if (!p && !spotifyMode(room)) {
+      const cb = q.step === 'celebrate' && q.celebrate;
+      if (cb) v.r24.audio = { url: cb.song.previewUrl, key: cb.key, songId: cb.song.id, playing: true, offsetMs: cb.offsetMs + (now() - cb.startAt), until: cb.until };
+      else if (q.step === 'playing' && q.current && q.current.previewUrl) v.r24.preload = { url: q.current.previewUrl, key: q.current.drawId }; // la tele la deja cargada, en silencio
+    }
     if (p && q.current) {
       if (p.id === q.clueGiverId) v.r24.card = { ...pub(q.current), previewUrl: spotifyMode(room) ? null : q.current.previewUrl, spotify: q.current.spotify || null, drawId: q.current.drawId };
       else if (p.groupId && p.groupId !== q.groupId) v.r24.card = pub(q.current);
