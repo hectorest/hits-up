@@ -148,12 +148,14 @@ async function freshPreview(id) {
 /* ------------------------------------------------------------------ */
 const ODESLI_KEY = process.env.ODESLI_API_KEY || '';
 const spCache = new Map(); // id de Deezer → { url, found }
+let spLastError = null;
+const SP_TRACK = /^https:\/\/open\.spotify\.com\/track\/[A-Za-z0-9]{22}$/;
 const spSearchUrl = song => 'https://open.spotify.com/search/' + encodeURIComponent(`${song.title} ${song.artist || ''}`.trim());
 async function spotifyLink(song) {
   const id = String(song.id);
   if (spCache.has(id)) return spCache.get(id);
   let out = { url: spSearchUrl(song), found: false };
-  if (MOCK) out = { url: 'https://open.spotify.com/track/mock' + id, found: true };
+  if (MOCK) { if (process.env.SP_MOCK_FAIL !== '1') out = { url: 'https://open.spotify.com/track/mock' + id, found: true }; }
   else {
     try {
       const u = 'https://api.song.link/v1-alpha.1/links?userCountry=ES&url=' + encodeURIComponent('https://www.deezer.com/track/' + id) + (ODESLI_KEY ? '&key=' + encodeURIComponent(ODESLI_KEY) : '');
@@ -162,14 +164,29 @@ async function spotifyLink(song) {
       if (r.ok) {
         const d = await r.json();
         const sp = d.linksByPlatform && d.linksByPlatform.spotify;
-        if (sp && sp.url) out = { url: sp.url, found: true };
-      } else console.warn('odesli', r.status);
-    } catch (e) { console.warn('odesli', e.message); }
+        if (sp && sp.url) out = { url: sp.url.split('?')[0], found: true };
+        else spLastError = { at: new Date().toISOString(), id, error: 'Odesli no tiene esta canción en Spotify' };
+      } else { spLastError = { at: new Date().toISOString(), id, status: r.status, body: (await r.text()).slice(0, 200) }; console.warn('odesli', r.status); }
+    } catch (e) { spLastError = { at: new Date().toISOString(), id, error: e.message }; console.warn('odesli', e.message); }
   }
   if (out.found) spCache.set(id, out); // los fallos no se guardan: se reintenta la próxima vez
   return out;
 }
 const spotifyMode = room => room.music === 'spotify';
+// El móvil puede encontrar el enlace por su cuenta (desde su conexión) y enviarlo
+function setSpotifyLink(room, p, songId, url) {
+  url = String(url || '').split('?')[0];
+  if (!SP_TRACK.test(url)) fail('Enlace no válido');
+  const sp = { url, found: true };
+  const r1 = room.r1, q = room.r24;
+  let song = null;
+  if (r1 && r1.song && r1.song.id === String(songId) && r1.proposerId === p.id) song = r1.song;
+  else if (q && q.current && q.current.id === String(songId) && q.clueGiverId === p.id) song = q.current;
+  if (!song) fail('Ahora no');
+  song.spotify = sp;
+  spCache.set(String(songId), sp);
+  room.deck.forEach(s => { if (s.id === String(songId)) s.spotify = sp; });
+}
 
 /* ------------------------------------------------------------------ */
 /* Salas y jugadores                                                   */
@@ -617,6 +634,7 @@ async function handleAction(room, p, a) {
     }
     case 'propose': await r1Propose(room, p, a.song); break;
     case 'cueStart': r1CueStart(room, p); break;
+    case 'spLink': setSpotifyLink(room, p, a.songId, a.url); break;
     case 'buzz': r1Buzz(room, p); break;
     case 'keep': r1Keep(room, p, !!a.keep); break;
     case 'judge': r1Judge(room, p, a.verdict === 'title' ? 'title' : a.verdict === 'artist' ? 'artist' : 'fail'); break;
@@ -838,6 +856,13 @@ const server = http.createServer(async (req, res) => {
         const r = await searchSongs(url.searchParams.get('q'));
         return json(res, 200, Array.isArray(r) ? { results: r, hidden: 0 } : r);
       } catch (e) { console.error('search', e.message); return json(res, 502, { error: 'No se pudo buscar en Deezer', detail: String(e.message || e).slice(0, 300) }); }
+    }
+    if (req.method === 'GET' && p === '/api/splink') { // diagnóstico del enlace de Spotify
+      const id = String(url.searchParams.get('id') || '');
+      if (!/^\d+$/.test(id)) return json(res, 400, { error: 'Falta id de Deezer' });
+      spCache.delete(id);
+      const r = await spotifyLink({ id, title: '', artist: '' });
+      return json(res, 200, { ...r, lastError: r.found ? null : spLastError });
     }
     if (req.method === 'GET' && p === '/api/preview') {
       const u = await freshPreview(url.searchParams.get('id'));

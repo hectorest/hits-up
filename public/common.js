@@ -129,6 +129,27 @@ window.HU = (() => {
   }, 100);
 
   // Baja el volumen progresivamente en los últimos segundos del fragmento
+  // Enlace de Spotify de una canción de Deezer, pedido desde el propio móvil (Odesli/song.link)
+  const spDone = new Map();
+  async function spotifyFor(deezerId) {
+    if (spDone.has(deezerId)) return spDone.get(deezerId);
+    const job = (async () => {
+      try {
+        const ctl = new AbortController(); const to = setTimeout(() => ctl.abort(), 7000);
+        const r = await fetch('https://api.song.link/v1-alpha.1/links?userCountry=ES&url=' + encodeURIComponent('https://www.deezer.com/track/' + deezerId), { signal: ctl.signal });
+        clearTimeout(to);
+        if (!r.ok) return null;
+        const d = await r.json();
+        const sp = d.linksByPlatform && d.linksByPlatform.spotify;
+        return sp && sp.url ? sp.url.split('?')[0] : null;
+      } catch (e) { return null; }
+    })();
+    spDone.set(deezerId, job);
+    const u = await job;
+    if (!u) spDone.delete(deezerId); // se podrá reintentar
+    return u;
+  }
+
   function fadeOut(audio, secs = 4) {
     setInterval(() => {
       const d = audio.duration;
@@ -148,5 +169,5 @@ window.HU = (() => {
     setTimeout(() => el.remove(), 2600);
   }
 
-  return { esc, sNow, connect, post, get, search, freshPreview, fadeOut, dz: dzDirect, mapTrack, isNoise, norm, shuffle, group, dot, chip, cover, vinyl, fmt, ring, ROUNDS, ICON, toast };
+  return { esc, sNow, connect, post, get, search, freshPreview, spotifyFor, fadeOut, dz: dzDirect, mapTrack, isNoise, norm, shuffle, group, dot, chip, cover, vinyl, fmt, ring, ROUNDS, ICON, toast };
 })();

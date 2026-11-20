@@ -202,6 +202,10 @@ function listen(url, onState) {
   check(tv.r1.step === 'cue', 'Tras proponer, toca poner la canción en Spotify');
   check(states[prop].r1.spotify && /open\.spotify\.com\/track\//.test(states[prop].r1.spotify.url), 'Quien propone recibe el enlace de Spotify');
   check(!tv.r1.audio, 'La tele no reproduce audio en modo Spotify');
+  const goodSp = 'https://open.spotify.com/track/' + 'A1b2C3d4E5f6G7h8I9j0Kk';
+  check((await act(prop, 'spLink', { songId: song.id, url: 'https://evil.example/track/x' })).error, 'Se rechazan enlaces que no son de Spotify');
+  await act(prop, 'spLink', { songId: song.id, url: goodSp + '?si=abc' }); await sleep(60);
+  check(states[prop].r1.spotify.url === goodSp && states[prop].r1.spotify.found, 'El móvil puede aportar el enlace exacto si el servidor no lo encontró');
   const rivalName = Object.keys(P).find(n => states[n].me.groupId && states[n].me.groupId !== states[prop].me.groupId);
   check((await act(rivalName, 'buzz')).error, 'No se puede pulsar antes de que suene');
   check((await act(rivalName, 'cueStart')).error, 'Solo quien propone pone la canción');
