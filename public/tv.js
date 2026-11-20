@@ -105,7 +105,7 @@
           <div class="big" style="font-size:34px;word-break:break-all">${esc(url)}</div>
           <div class="mut" style="font-size:18px;margin-top:8px">con el código</div>
           <div class="big" style="font-size:112px;color:var(--acc);letter-spacing:0.06em">${esc(s.code)}</div>
-          <div class="mut" style="font-size:16px">${host ? `${esc(host.name)} es quien empieza la partida desde su móvil.` : 'El primero en entrar será el anfitrión.'}</div>
+          <div class="mut" style="font-size:16px">${s.music === 'spotify' ? 'Música: <b style="color:var(--txt)">app de Spotify</b> · cada canción suena en el móvil de quien la pone. ' : ''}${host ? `${esc(host.name)} es quien empieza la partida desde su móvil.` : 'El primero en entrar será el anfitrión.'}</div>
         </div>
       </section>
       <section style="width:400px;display:flex;flex-direction:column;gap:14px">
@@ -128,6 +128,14 @@
   }
   function r1(s) {
     const r = s.r1, gp = group(s, r.groupId);
+    if (r.step === 'cue') {
+      return page(s, `<section class="center card" style="padding:40px">
+        <div style="display:flex;align-items:center;gap:14px;font-size:22px"><span class="mut" style="text-transform:uppercase;letter-spacing:.08em;font-weight:600;font-size:16px">Propone</span>${chip(gp, 22)}</div>
+        <div class="big" style="font-size:84px">${esc(r.proposerName)}</div>
+        <div class="mut" style="font-size:26px">está poniendo la canción en Spotify…</div>
+        <div class="mut" style="font-size:18px">Atentos: en cuanto suene, podréis pulsar.</div>
+      </section>`);
+    }
     if (r.step === 'choosing' || r.step === 'loading') {
       return page(s, `<section class="center card" style="padding:40px">
         <div style="display:flex;align-items:center;gap:14px;font-size:22px"><span class="mut" style="text-transform:uppercase;letter-spacing:.08em;font-weight:600;font-size:16px">Propone</span>${chip(gp, 22)}</div>
@@ -159,7 +167,7 @@
     const ansG = ans && group(s, ans.groupId);
     const lv = r.lastVerdict && group(s, r.lastVerdict.groupId);
     const status = answering
-      ? `<div class="warnpill" style="font-size:18px">${ICON.pause} Música en pausa · responde ${esc(ansG.name)}</div>`
+      ? `<div class="warnpill" style="font-size:18px">${s.music === 'spotify' ? '' : ICON.pause + ' Música en pausa · '}Responde ${esc(ansG.name)}</div>`
       : lv ? `<div class="warnpill" style="font-size:18px">${esc(lv.name)}: ${r.lastVerdict.verdict === 'artist' ? 'solo el artista (+1)' : 'fallo (−1)'}</div>`
       : `<div class="mut" style="font-size:18px">Pulsad en el móvil si la sabéis</div>`;
     const queue = r.queue.length ? r.queue.map((q, i) => {

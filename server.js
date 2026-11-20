@@ -38,7 +38,8 @@ const T = {
   HIT_WINDOW: 4000,    // una falta pulsada justo tras un acierto apunta a esa carta
   DECK_TOTAL: 30,
   FICHAS: 2,
-  CARRY_MIN: 3000
+  CARRY_MIN: 3000,
+  CUE_MAX: 45000       // modo Spotify: si quien propone no la pone en este tiempo, se da por empezada
 };
 if (process.env.HU_FAST === '1') Object.assign(T, { PREVIEW: 9000, BONUS: 4000, REVEAL: 2500, REVEAL_HIT: 3000, KEEP_DECIDE: 6000, TURN: { 2: 15000, 3: 15000, 4: 15000 }, TURN_END: 2000, DECK_TOTAL: 6 });
 const ROUND_PTS = { 2: 2, 3: 3, 4: 4 };
@@ -142,6 +143,34 @@ async function freshPreview(id) {
 }
 
 /* ------------------------------------------------------------------ */
+/* Modo Spotify: enlace a la canción en la app (vía Odesli/song.link)  */
+/* ------------------------------------------------------------------ */
+const ODESLI_KEY = process.env.ODESLI_API_KEY || '';
+const spCache = new Map(); // id de Deezer → { url, found }
+const spSearchUrl = song => 'https://open.spotify.com/search/' + encodeURIComponent(`${song.title} ${song.artist || ''}`.trim());
+async function spotifyLink(song) {
+  const id = String(song.id);
+  if (spCache.has(id)) return spCache.get(id);
+  let out = { url: spSearchUrl(song), found: false };
+  if (MOCK) out = { url: 'https://open.spotify.com/track/mock' + id, found: true };
+  else {
+    try {
+      const u = 'https://api.song.link/v1-alpha.1/links?userCountry=ES&url=' + encodeURIComponent('https://www.deezer.com/track/' + id) + (ODESLI_KEY ? '&key=' + encodeURIComponent(ODESLI_KEY) : '');
+      const ctl = new AbortController(); const to = setTimeout(() => ctl.abort(), 6000);
+      const r = await fetch(u, { signal: ctl.signal }); clearTimeout(to);
+      if (r.ok) {
+        const d = await r.json();
+        const sp = d.linksByPlatform && d.linksByPlatform.spotify;
+        if (sp && sp.url) out = { url: sp.url, found: true };
+      } else console.warn('odesli', r.status);
+    } catch (e) { console.warn('odesli', e.message); }
+  }
+  if (out.found) spCache.set(id, out); // los fallos no se guardan: se reintenta la próxima vez
+  return out;
+}
+const spotifyMode = room => room.music === 'spotify';
+
+/* ------------------------------------------------------------------ */
 /* Salas y jugadores                                                   */
 /* ------------------------------------------------------------------ */
 function makeGroups(n) { return PRESETS.slice(0, n).map((p, i) => ({ id: 'g' + i, name: p.name, color: p.color, score: 0, rot: 0, rot2: 0, fichas: T.FICHAS })); }
@@ -150,7 +179,7 @@ function createRoom() {
   const room = {
     code: newCode(), createdAt: now(), lastActivity: now(),
     groups: makeGroups(2), players: new Map(), tvConns: new Set(),
-    phase: 'lobby', round: 0, deck: [], quota: 15, hostId: null,
+    phase: 'lobby', round: 0, deck: [], quota: 15, hostId: null, music: 'deezer',
     r1: null, r24: null, nextGroup: 0, carry: null
   };
   room.timer = setInterval(() => { try { tick(room); } catch (e) { console.error(e); } }, 200);
@@ -201,11 +230,27 @@ async function r1Propose(room, p, song) {
   r.step = 'loading';
   r.song = s;
   const token = r.token;
+  if (spotifyMode(room)) {
+    const sp = await spotifyLink(s);
+    if (room.r1 !== r || r.token !== token) return;
+    s.spotify = sp;
+    p.list = p.list.filter(x => x.id !== s.id);
+    r.step = 'cue'; // quien propone abre la canción en Spotify
+    r.cueDeadline = now() + T.CUE_MAX;
+    return;
+  }
   const fresh = await freshPreview(s.id);
   if (room.r1 !== r || r.token !== token) return;
   s.preview = fresh || s.preview;
   if (!s.preview) { r.step = 'choosing'; r.song = null; fail('Esta canción no tiene fragmento'); }
   p.list = p.list.filter(x => x.id !== s.id);
+  r.step = 'playing';
+  r.startedAt = now();
+}
+function r1CueStart(room, p) {
+  const r = room.r1;
+  if (!r || r.step !== 'cue') return;
+  if (p && r.proposerId !== p.id) fail('Solo quien propone pone la canción');
   r.step = 'playing';
   r.startedAt = now();
 }
@@ -278,6 +323,7 @@ function r1Keep(room, p, keep, auto) {
 function tickR1(room) {
   const r = room.r1;
   if (!r) return false;
+  if (r.step === 'cue' && now() > r.cueDeadline) { r1CueStart(room, null); return true; }
   if (r.step === 'playing' && played(r) >= T.PREVIEW) { r1Discard(room); return true; }
   if (r.step === 'answering' && !r.answering.expired && now() > r.answering.deadline) { r.answering.expired = true; return true; }
   if (r.step === 'answering' && now() > r.answering.deadline + T.JUDGE_MAX) { r1Judge(room, null, 'fail', true); return true; }
@@ -330,6 +376,13 @@ function drawCard(room) {
   c.previewUrl = c.preview;
   c.drawId = crypto.randomUUID();
   r.current = c;
+  if (spotifyMode(room)) {
+    if (!c.spotify || !c.spotify.found) {
+      c.spotify = c.spotify || { url: spSearchUrl(c), found: false };
+      spotifyLink(c).then(sp => { if (room.r24 && room.r24.current && room.r24.current.drawId === c.drawId && sp.url !== c.spotify.url) { c.spotify = sp; broadcast(room); } });
+    }
+    return;
+  }
   freshPreview(c.id).then(u => { if (u && room.r24 && room.r24.current && room.r24.current.drawId === c.drawId) { c.previewUrl = u; broadcast(room); } });
 }
 function r24Hit(room, p) {
@@ -479,6 +532,11 @@ async function handleAction(room, p, a) {
       g.name = name;
       break;
     }
+    case 'setMusic': {
+      needHost(); if (room.phase !== 'lobby') fail('La música se elige antes de empezar');
+      room.music = a.music === 'spotify' ? 'spotify' : 'deezer';
+      break;
+    }
     case 'joinGroup': {
       if (!groupById(room, a.groupId)) fail('Grupo no válido');
       if (room.phase !== 'lobby' && p.groupId) fail('Ya tienes grupo');
@@ -536,6 +594,7 @@ async function handleAction(room, p, a) {
       break;
     }
     case 'propose': await r1Propose(room, p, a.song); break;
+    case 'cueStart': r1CueStart(room, p); break;
     case 'buzz': r1Buzz(room, p); break;
     case 'keep': r1Keep(room, p, !!a.keep); break;
     case 'judge': r1Judge(room, p, a.verdict === 'title' ? 'title' : a.verdict === 'artist' ? 'artist' : 'fail'); break;
@@ -554,7 +613,7 @@ async function handleAction(room, p, a) {
 const pub = s => s && { id: s.id, title: s.title, artist: s.artist, cover: s.cover };
 function view(room, p) {
   const v = {
-    now: now(), code: room.code, phase: room.phase, round: room.round, quota: room.quota, deckSize: room.deck.length, deckIds: room.deck.map(s => s.id), hostId: room.hostId,
+    now: now(), code: room.code, phase: room.phase, round: room.round, quota: room.quota, music: room.music, deckSize: room.deck.length, deckIds: room.deck.map(s => s.id), hostId: room.hostId,
     groups: room.groups.map(g => ({
       id: g.id, name: g.name, color: g.color, score: g.score, fichas: g.fichas, inDeck: inDeck(room, g.id),
       players: groupPlayers(room, g.id).map(pl => ({ id: pl.id, name: pl.name, online: pl.conns.size > 0 }))
@@ -572,13 +631,13 @@ function view(room, p) {
     v.r1 = {
       step: r.step, groupId: r.groupId, proposerId: r.proposerId, proposerName: prop ? prop.name : '?',
       queue, out: r.out, answeringDeadline: r.answering ? r.answering.deadline : null, answeringExpired: !!(r.answering && r.answering.expired),
-      playedMs: played(r), playing: !!r.startedAt, chooseDeadline: r.chooseDeadline,
+      playedMs: played(r), playing: !!r.startedAt, chooseDeadline: r.chooseDeadline, cueDeadline: r.step === 'cue' ? r.cueDeadline : null,
       lastVerdict: r.lastVerdict && now() - r.lastVerdict.at < 2500 ? r.lastVerdict : null,
       reveal: r.step === 'reveal' ? { ...r.reveal, song: pub(r.song), until: r.revealUntil } : null
     };
-    if (p && p.id === r.proposerId && r.song) { v.r1.song = pub(r.song); v.r1.songPreview = r.song.preview; }
+    if (p && p.id === r.proposerId && r.song) { v.r1.song = pub(r.song); v.r1.songPreview = r.song.preview; v.r1.spotify = r.song.spotify || null; }
     const hitReveal = r.step === 'reveal' && r.reveal && r.reveal.result === 'in';
-    if (!p && r.song && (r.step === 'playing' || r.step === 'answering' || hitReveal)) v.r1.audio = { url: r.song.preview, key: r.token, songId: r.song.id, playing: !!r.startedAt, offsetMs: played(r) };
+    if (!p && r.song && !spotifyMode(room) && (r.step === 'playing' || r.step === 'answering' || hitReveal)) v.r1.audio = { url: r.song.preview, key: r.token, songId: r.song.id, playing: !!r.startedAt, offsetMs: played(r) };
   }
   const q = room.r24;
   if (room.phase === 'r24' && q) {
@@ -594,7 +653,7 @@ function view(room, p) {
       } : null
     };
     if (p && q.current) {
-      if (p.id === q.clueGiverId) v.r24.card = { ...pub(q.current), previewUrl: q.current.previewUrl, drawId: q.current.drawId };
+      if (p.id === q.clueGiverId) v.r24.card = { ...pub(q.current), previewUrl: spotifyMode(room) ? null : q.current.previewUrl, spotify: q.current.spotify || null, drawId: q.current.drawId };
       else if (p.groupId && p.groupId !== q.groupId) v.r24.card = pub(q.current);
     }
   }

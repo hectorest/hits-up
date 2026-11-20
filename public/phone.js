@@ -144,9 +144,15 @@
     }).join('');
     const host = me.isHost ? `<div class="host"><div class="mut" style="font-size:12px;text-transform:uppercase;letter-spacing:.08em;font-weight:600">Eres el anfitrión</div>
         <div class="field"><label>Número de grupos</label><div class="seg">${[2, 3, 4, 5].map(n => `<button type="button" class="${s.groups.length === n ? 'on' : ''}" data-act="setGroups" data-arg="${n}">${n}</button>`).join('')}</div></div>
+        <div class="field"><label>Música</label><div class="seg" style="grid-template-columns:1fr 1fr">
+          <button type="button" class="${s.music !== 'spotify' ? 'on' : ''}" data-act="setMusic" data-arg="deezer">Fragmentos</button>
+          <button type="button" class="${s.music === 'spotify' ? 'on' : ''}" data-act="setMusic" data-arg="spotify">App de Spotify</button></div>
+          <div class="mut" style="font-size:13px;line-height:1.45">${s.music === 'spotify'
+            ? 'Canción entera en la app de Spotify del móvil de quien la pone (con Premium, sin anuncios). Conectad ese móvil a un altavoz. La tele no suena.'
+            : '30 segundos de cada canción. Suenan en la tele y el juego las pausa solo.'}</div></div>
         <button type="button" class="btn btn-acc btn-block" data-act="start">Empezar partida</button>
         <div class="mut" style="font-size:13px">Hacen falta al menos 2 grupos con jugadores. Los grupos vacíos se quitan al empezar.</div></div>`
-      : `<div class="mut" style="font-size:14px">Cuando estéis todos, el anfitrión empezará la partida.</div>`;
+      : `<div class="mut" style="font-size:14px">Cuando estéis todos, el anfitrión empezará la partida.${s.music === 'spotify' ? ' Música: app de Spotify. Tenla instalada y con la sesión iniciada.' : ''}</div>`;
     return `${kicker(null, 'Sala ' + s.code)}<div class="title">Hola, ${esc(me.name)}</div>
       <div style="font-weight:600">${me.groupId ? 'Tu grupo' : 'Elige tu grupo'}</div>
       <div style="display:flex;flex-direction:column;gap:8px">${groups}</div>${host}`;
@@ -173,9 +179,24 @@
         <div class="mut" style="font-size:14px">${mine ? 'Es vuestro turno: no podréis pulsar en esta canción.' : 'Prepárate para pulsar en cuanto la reconozcas.'}</div></div>${hb}`;
     }
     if (r.step === 'loading') return `<div class="grow center"><div class="title">Preparando la canción…</div></div>`;
+    if (r.step === 'cue') {
+      if (!isProp) return `${kicker(mg, (mg ? mg.name : '') + ' · Ronda 1 · ' + scoreLine(s))}<div class="grow center"><div class="title">${esc(r.proposerName)} está poniendo la canción</div>
+        <div class="mut">${mine ? 'Es vuestra: no podréis pulsar.' : 'Prepárate: en cuanto suene, podrás pulsar.'}</div></div>${hb}`;
+      const sp = r.spotify || {};
+      return `<div>${kicker(gp, gp.name + ' · Ronda 1 · Tu canción')}<div class="title">Pon la canción</div></div>
+        <div class="card" style="display:flex;align-items:center;gap:14px;padding:14px;border-radius:18px">${cover(r.song, 64)}
+          <div class="s-meta"><div class="display" style="font-weight:700;font-size:22px">${esc(r.song.title)}</div><div class="mut" style="font-size:14px">${esc(r.song.artist)}</div></div></div>
+        <div class="grow center" style="gap:14px">
+          <a class="btn btn-acc btn-block" style="min-height:72px;font-size:20px;text-decoration:none" href="${esc(sp.url || '')}" target="_blank" rel="noopener" data-act="cueStart">${ICON.play} Abrir en Spotify</a>
+          <div class="mut" style="font-size:14px;line-height:1.5;max-width:300px">${sp.found ? 'Se abrirá la canción en Spotify. Dale a play si no empieza sola y vuelve aquí: serás el juez.' : 'No encontramos el enlace exacto: se abrirá la búsqueda en Spotify. Toca la canción y vuelve aquí: serás el juez.'}</div>
+          <button type="button" class="btn btn-sec" data-act="cueStart">Ya está sonando</button>
+          <div class="mut" style="font-size:12px">Si no la pones en <b data-until="${r.cueDeadline}" data-fmt="sec"></b> s, el tiempo empieza igualmente.</div>
+        </div>${hb}`;
+    }
     if (r.step === 'reveal') {
       const rv = r.reveal, song = rv.song || {}, win = rv.winnerGroupId && group(s, rv.winnerGroupId);
-      return `<div class="grow center fade-in">${cover(song, 160, 20)}<div class="title" style="font-size:30px">${esc(song.title)}</div><div class="mut">${esc(song.artist)}</div>
+      const stopHint = s.music === 'spotify' && isProp ? '<div class="warn" style="font-size:14px">Ya puedes parar la música en Spotify.</div>' : '';
+      return `<div class="grow center fade-in">${stopHint}${cover(song, 160, 20)}<div class="title" style="font-size:30px">${esc(song.title)}</div><div class="mut">${esc(song.artist)}</div>
         ${rv.result === 'in' ? `<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;justify-content:center">${chip(win)}<b>+${rv.pts}</b><span class="mut">· entra al mazo</span></div>`
           : rv.pending ? (isProp
             ? `<div class="pill">Nadie la acertó</div><div style="font-weight:600">¿La metes igualmente en el mazo?</div>
@@ -202,7 +223,7 @@
               ? '<div class="title" style="font-size:26px">¿Ha acertado?</div><div class="mut" style="font-size:14px;max-width:280px">Se acabaron los 5 s para empezar a responder. Escucha la respuesta y decide.</div>'
               : ring(140, 10, r.answeringDeadline, s.T.ANSWER)}
             <div class="mut" style="font-size:14px">${next.length ? 'Después: ' + next.join(' · ') : 'Nadie más en la cola'}</div>`
-            : `<div class="title" style="font-size:22px">Esperando a que alguien pulse…</div>${lv ? `<div class="mut">${esc(lv.name)}: ${r.lastVerdict.verdict === 'artist' ? 'solo artista' : 'fallo'}</div>` : ''}`}
+            : `<div class="title" style="font-size:22px">Esperando a que alguien pulse…</div>${s.music === 'spotify' ? '<div class="mut" style="font-size:13px;max-width:290px">La música sigue en Spotify. Si quieres, bájala o páusala desde los controles del móvil cuando respondan.</div>' : ''}${lv ? `<div class="mut">${esc(lv.name)}: ${r.lastVerdict.verdict === 'artist' ? 'solo artista' : 'fallo'}</div>` : ''}`}
         </div>
         <div style="display:flex;flex-direction:column;gap:10px">
           <button type="button" class="btn btn-ok" style="min-height:64px;justify-content:space-between" data-act="judge" data-arg="title" ${can ? '' : 'disabled'}><span style="display:inline-flex;gap:10px;align-items:center">${ICON.check}Título correcto</span><span style="font:600 14px Inter">+${bonus ? 3 : 2} · entra al mazo</span></button>
@@ -242,7 +263,7 @@
     const help = {
       libre: 'Pulsa si sabes el título. Si fallas, −1.',
       cola: ansG ? `Responde ${esc(ansG.name)}. Estáis en la cola.` : 'Estáis en la cola.',
-      responde: r.answeringExpired ? 'Terminad de responder: el juez dirá si vale.' : 'Decid el título en voz alta. La música está en pausa.',
+      responde: r.answeringExpired ? 'Terminad de responder: el juez dirá si vale.' : s.music === 'spotify' ? 'Decid el título en voz alta.' : 'Decid el título en voz alta. La música está en pausa.',
       out: 'Esperad a la siguiente canción.',
       fin: 'Esperad a que se resuelva la cola.'
     };
@@ -262,7 +283,7 @@
     const hb = hostBar([r.step === 'ready' ? hbtn('skipTurn', 'Pasar turno') : '', hbtn('endRound', 'Terminar ronda')].filter(Boolean));
     if (r.step === 'ready') {
       if (isClue) return `<div>${kicker(g, g.name + ' · Ronda ' + s.round + ' · ' + R.name)}<div class="title">Te toca dar pistas</div></div>
-        <div class="warn" style="font-size:15px">${ICON.headphones}<span>Ponte los auriculares: la canción solo debe oírla tú.</span></div>
+        <div class="warn" style="font-size:15px">${ICON.headphones}<span>Ponte los auriculares: la canción solo debe oírla tú.${s.music === 'spotify' ? ' Cada carta se abre en Spotify; vuelve aquí para marcar.' : ''}</span></div>
         <div class="art">${HU_ART.art(s.round, 200)}</div>
         ${HU_ART.rules(s.round)}
         <div class="grow"></div><button type="button" class="btn btn-acc btn-block" style="min-height:64px;font-size:20px" data-act="begin">Empezar</button>${hb}`;
@@ -304,8 +325,11 @@
       const c = r.card;
       return `${top}${fr}<section class="card" style="flex:1;border-radius:28px;padding:24px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;text-align:center">
           ${cover(c, 132, 20)}<div class="display" style="font-weight:700;font-size:34px;line-height:1.05">${esc(c.title)}</div><div class="mut" style="font-size:17px">${esc(c.artist)}</div>
-          <button type="button" class="btn btn-sec" style="min-height:44px;border-radius:999px;font:600 15px Inter" data-act="replay">${ICON.repeat} Repetir fragmento</button>
-          <div class="mut" style="font-size:13px;display:inline-flex;gap:6px;align-items:center">${ICON.headphones} Suena en tus auriculares</div></section>
+          ${s.music === 'spotify' && c.spotify
+            ? `<a class="btn btn-acc" style="min-height:48px;border-radius:999px;font:600 16px Inter;text-decoration:none" href="${esc(c.spotify.url)}" target="_blank" rel="noopener">${ICON.play} Abrir en Spotify</a>
+               <div class="mut" style="font-size:13px">${c.spotify.found ? 'Escúchala con auriculares y vuelve para marcar.' : 'Se abrirá la búsqueda: toca la canción y vuelve.'}</div>`
+            : `<button type="button" class="btn btn-sec" style="min-height:44px;border-radius:999px;font:600 15px Inter" data-act="replay">${ICON.repeat} Repetir fragmento</button>
+          <div class="mut" style="font-size:13px;display:inline-flex;gap:6px;align-items:center">${ICON.headphones} Suena en tus auriculares</div>`}</section>
         ${rulesBox(s.round)}
         <div style="display:flex;justify-content:space-between;font-size:14px" class="mut"><span>Aciertos en este turno: <b style="color:var(--txt)">${r.hits}</b></span><span>Quedan <b style="color:var(--txt)">${r.deckLeft}</b></span></div>
         <div style="display:grid;grid-template-columns:1fr 1.6fr;gap:10px"><button type="button" class="btn btn-sec" style="min-height:60px" data-act="pass">Pasar</button><button type="button" class="btn btn-acc" style="min-height:60px;font-size:18px" data-act="hit">¡Acertada! +${pts}</button></div>`;
@@ -385,7 +409,7 @@
   }
   function syncCardAudio(s) {
     const c = s.phase === 'r24' && s.r24 && s.r24.step === 'playing' && s.me.id === s.r24.clueGiverId && s.r24.card;
-    if (c) {
+    if (c && c.previewUrl) {
       if (c.drawId !== cardDrawId) {
         cardDrawId = c.drawId;
         audio.src = c.previewUrl;
@@ -585,6 +609,8 @@
       case 'editName': editingName = true; focusName = true; lastHtml = ''; return render(S);
       case 'cancelName': editingName = false; lastHtml = ''; return render(S);
       case 'setGroups': return act('setGroups', { n: +arg });
+      case 'setMusic': return act('setMusic', { music: arg });
+      case 'cueStart': busy = false; return act('cueStart'); // el enlace se abre igualmente
       case 'buzz': if (navigator.vibrate) navigator.vibrate(40); return act('buzz');
       case 'judge': return act('judge', { verdict: arg });
       case 'keep': return act('keep', { keep: arg === '1' });

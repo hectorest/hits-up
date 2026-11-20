@@ -172,6 +172,44 @@ function listen(url, onState) {
   }
   await act('Ana', 'restart'); await sleep(60);
   check(tv.phase === 'lobby' && tv.groups.every(g => g.score === 0), 'Otra partida reinicia la sala');
+
+  // ---- Modo App de Spotify ----
+  console.log('Modo Spotify');
+  check((await act('Bea', 'setMusic', { music: 'spotify' })).error, 'Solo la anfitriona elige la música');
+  await act('Ana', 'setMusic', { music: 'spotify' }); await sleep(60);
+  check(tv.music === 'spotify', 'La anfitriona elige la app de Spotify');
+  await act('Ana', 'start'); await sleep(60); await act('Ana', 'beginRound'); await sleep(80);
+  const nameOf = id => Object.keys(P).find(n => P[n] === id);
+  let prop = nameOf(tv.r1.proposerId);
+  const song = (await (await fetch(base + '/api/search?q=a')).json()).results.slice(-1)[0];
+  const pr = await act(prop, 'propose', { song }); if (pr.error) console.log('   propose:', pr.error, tv.r1 && tv.r1.step); await sleep(80);
+  check(tv.r1.step === 'cue', 'Tras proponer, toca poner la canción en Spotify');
+  check(states[prop].r1.spotify && /open\.spotify\.com\/track\//.test(states[prop].r1.spotify.url), 'Quien propone recibe el enlace de Spotify');
+  check(!tv.r1.audio, 'La tele no reproduce audio en modo Spotify');
+  const rivalName = Object.keys(P).find(n => states[n].me.groupId && states[n].me.groupId !== states[prop].me.groupId);
+  check((await act(rivalName, 'buzz')).error, 'No se puede pulsar antes de que suene');
+  check((await act(rivalName, 'cueStart')).error, 'Solo quien propone pone la canción');
+  await act(prop, 'cueStart'); await sleep(60);
+  check(tv.r1.step === 'playing' && tv.r1.playing, 'Al abrir Spotify empieza el tiempo');
+  await act(rivalName, 'buzz'); await sleep(60);
+  check(tv.r1.step === 'answering', 'Se puede pulsar mientras suena');
+  await act(prop, 'judge', { verdict: 'title' }); await sleep(60);
+  check(tv.deckSize === 1, 'La canción acertada entra al mazo');
+  await sleep(T.REVEAL_HIT + 300);
+  prop = nameOf(tv.r1.proposerId);
+  const song2 = (await (await fetch(base + '/api/search?q=e')).json()).results.slice(-2)[0];
+  await act(prop, 'propose', { song: song2 }); await sleep(60);
+  T.CUE_MAX = 300; // si nunca la pone, el tiempo empieza solo
+  tv.r1.step === 'cue' && await act(prop, 'cueStart');
+  await sleep(T.PREVIEW + 300);
+  if (tv.r1.reveal && tv.r1.reveal.pending) await act(prop, 'keep', { keep: true });
+  await sleep(T.REVEAL_SHORT + 300);
+  await act('Ana', 'endRound'); await sleep(60);
+  await act('Ana', 'next'); await sleep(60); await act('Ana', 'beginRound'); await sleep(60);
+  const clue = nameOf(tv.r24.clueGiverId);
+  await act(clue, 'begin'); await sleep(80);
+  const card = states[clue].r24.card;
+  check(card && card.spotify && card.spotify.url && card.previewUrl === null, 'La carta de quien da pistas trae el enlace de Spotify y no el fragmento');
   stops.forEach(s => s());
   console.log(failures ? `\n${failures} comprobaciones fallidas` : '\nTodo OK');
   process.exit(failures ? 1 : 0);
